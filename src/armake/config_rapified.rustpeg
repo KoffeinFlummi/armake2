@@ -1,0 +1,117 @@
+use std::str;
+use armake::config::{Config, ConfigClass, ConfigEntry, ConfigArray, ConfigArrayElement};
+
+whitespace = #quiet<[ \n\t]+>
+
+float -> f32 = f:$([-+]? [0-9]* "." [0-9]+) {
+    f.parse().unwrap()
+}
+
+integer -> i32 = i:$([-+]? "0x"? [0-9]+) {
+    i.parse().unwrap()
+}
+
+doublequoted_string -> String = "\""s:$(("\"\"" / [^\"])*)"\"" {
+    s.to_string().replace("\"\"", "\"")
+}
+
+singlequoted_string -> String = "'"s:$(("''" / [^'])*)"'" {
+    s.to_string().replace("\'\'", "\'")
+}
+
+string -> String = doublequoted_string / singlequoted_string
+
+// unquoted_string -> String = todo
+
+array_element -> ConfigArrayElement =
+    f:float   { ConfigArrayElement::FloatElement(f) } /
+    i:integer { ConfigArrayElement::IntElement(i) } /
+    s:string  { ConfigArrayElement::StringElement(s) } /
+    a:array   { ConfigArrayElement::ArrayElement(a) }
+
+array_elements -> Vec<ConfigArrayElement> = array_element ** (whitespace? "," whitespace?)
+
+array -> ConfigArray = "{" whitespace? elems:array_elements whitespace? "}" {
+    ConfigArray {
+        is_expansion: false,
+        elements: elems
+    }
+}
+
+var -> ConfigEntry =
+    f:float   { ConfigEntry::FloatEntry(f) } /
+    i:integer { ConfigEntry::IntEntry(i) } /
+    s:string  { ConfigEntry::StringEntry(s) }
+
+var_entry -> (String, ConfigEntry) = n:name whitespace? "=" whitespace? ce:var {
+    (n, ce)
+}
+
+array_entry -> (String, ConfigEntry) = n:name whitespace? "[" whitespace? "]" whitespace? "=" whitespace? a:array {
+    (n, ConfigEntry::ArrayEntry(a))
+}
+
+array_expansion_entry -> (String, ConfigEntry) = n:name whitespace? "[" whitespace? "]" whitespace? "+=" whitespace? a:array {
+    (n, ConfigEntry::ArrayEntry(ConfigArray {
+        is_expansion: true,
+        ..a
+    }))
+}
+
+entry -> (String, ConfigEntry) = e:(class / var_entry / array_entry / array_expansion_entry) whitespace? ";" {
+    e
+}
+
+entries -> Vec<(String, ConfigEntry)> = entry ** (whitespace?)
+
+name -> String = n:$([a-zA-Z0-9_]+) {
+    n.to_string()
+}
+
+parent -> String = whitespace? ":" whitespace? n:name {
+    n
+}
+
+regular_class -> (String, ConfigEntry) = "class" whitespace+ n:name p:parent? whitespace? "{" whitespace? e:entries whitespace? "}" {
+    let parent = match p {
+        Some(p) => p,
+        None => String::from("")
+    };
+    (n, ConfigEntry::ClassEntry(ConfigClass {
+        parent: parent,
+        is_external: false,
+        is_deletion: false,
+        entries: Some(e)
+    }))
+}
+
+external_class -> (String, ConfigEntry) = "class" whitespace+ n:name {
+    (n, ConfigEntry::ClassEntry(ConfigClass {
+        parent: String::from(""),
+        is_external: true,
+        is_deletion: false,
+        entries: None
+    }))
+}
+
+deleted_class -> (String, ConfigEntry) = "deleted" whitespace+ n:name {
+    (n, ConfigEntry::ClassEntry(ConfigClass {
+        parent: String::from(""),
+        is_external: false,
+        is_deletion: true,
+        entries: None
+    }))
+}
+
+class -> (String, ConfigEntry) = regular_class / external_class / deleted_class
+
+pub config -> Config = whitespace? e:entries whitespace? !. {
+    Config {
+        root_body: ConfigClass {
+            parent: String::from(""),
+            is_external: false,
+            is_deletion: false,
+            entries: Some(e)
+        }
+    }
+}

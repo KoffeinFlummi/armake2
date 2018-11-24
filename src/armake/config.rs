@@ -4,6 +4,10 @@ use std::io::{Read, Seek, Write, SeekFrom};
 use std::cell::{RefCell};
 use std::borrow::BorrowMut;
 
+mod config_rapified {
+    include!(concat!(env!("OUT_DIR"), "/config_rapified.rs"));
+}
+
 pub struct Config {
     root_body: ConfigClass,
 }
@@ -241,6 +245,13 @@ impl ConfigClass {
 impl Config {
     pub fn derapify<O: Write + Clone>(&self, output: O) -> Result<(), &'static str> {
         self.root_body.derapify(output, 0)
+    }
+
+    pub fn read<I: Read + Clone>(mut input: I) -> Result<Config, &'static str> {
+        let mut buffer = String::new();
+        input.read_to_string(&mut buffer).expect("Failed to read input file");
+        let config = config_rapified::config(&buffer).expect("Failed to parse config");
+        Ok(config)
     }
 
     pub fn read_rapified<I: Read + Seek + Clone>(mut input: I) -> Result<Config, &'static str> {

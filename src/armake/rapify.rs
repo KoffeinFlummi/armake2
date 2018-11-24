@@ -1,21 +1,11 @@
-use std::io;
+use std::io::{Read, Write};
 
-//pub mod config;
-//pub mod preprocess;
+use armake::config::{Config};
 
-//use armake::config;
+pub fn cmd_rapify<I: Read + Clone, O: Write + Clone>(input: I, output: O) -> i32 {
+    let mut config = Config::read(input).unwrap();
 
-//pub fn rapify_config(config: config::Config, output: impl io::Write) {
-//}
-//
-//pub fn rapify_class(class: config::ConfigClass, output: impl io::Write) {
-//}
-//
-//pub fn rapify_array(array: config::ConfigArray, is_subarray: bool, output: impl io::Write) {
-//}
-
-pub fn cmd_rapify(_input: impl io::Read, _output: impl io::Write) -> i32 {
-    //println!("{}", arg);
+    config.derapify(output).expect("Failed to derapify config");
 
     0
 }
