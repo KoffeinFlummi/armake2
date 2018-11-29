@@ -1,13 +1,16 @@
 use std::str;
 use armake::config::{Config, ConfigClass, ConfigEntry, ConfigArray, ConfigArrayElement};
 
-whitespace = #quiet<[ \n\t]+>
+whitespace = #quiet<[ \r\n\t]+>
 
 float -> f32 = f:$([-+]? [0-9]* "." [0-9]+) {
+    if f.chars().filter(|c| c == &'.').count() == 0 {
+        println!("{}", f);
+    }
     f.parse().unwrap()
 }
 
-integer -> i32 = i:$([-+]? "0x"? [0-9]+) {
+integer -> i32 = i:$([-+]? (("0x" [0-9a-fA-F]+) / [0-9]+)) {
     i.parse().unwrap()
 }
 
@@ -19,15 +22,22 @@ singlequoted_string -> String = "'"s:$(("''" / [^'])*)"'" {
     s.to_string().replace("\'\'", "\'")
 }
 
+unquoted_string -> String = s:$([^;]*) {
+    s.to_string().trim().to_string()
+}
+
+unquoted_string_array -> String = s:$([^,} \t][^,}]*) {
+    s.to_string()
+}
+
 string -> String = doublequoted_string / singlequoted_string
 
-// unquoted_string -> String = todo
-
 array_element -> ConfigArrayElement =
-    f:float   { ConfigArrayElement::FloatElement(f) } /
-    i:integer { ConfigArrayElement::IntElement(i) } /
-    s:string  { ConfigArrayElement::StringElement(s) } /
-    a:array   { ConfigArrayElement::ArrayElement(a) }
+    f:float   &(whitespace? [,}]) { ConfigArrayElement::FloatElement(f) } /
+    i:integer &(whitespace? [,}]) { ConfigArrayElement::IntElement(i) } /
+    a:array   &(whitespace? [,}]) { ConfigArrayElement::ArrayElement(a) } /
+    s:string  &(whitespace? [,}]) { ConfigArrayElement::StringElement(s) } /
+    s:unquoted_string_array &(whitespace? [,}]) { ConfigArrayElement::StringElement(s) }
 
 array_elements -> Vec<ConfigArrayElement> = array_element ** (whitespace? "," whitespace?)
 
@@ -47,6 +57,10 @@ var_entry -> (String, ConfigEntry) = n:name whitespace? "=" whitespace? ce:var {
     (n, ce)
 }
 
+unquoted_string_entry -> (String, ConfigEntry) = n:name whitespace? "=" whitespace? s:unquoted_string {
+    (n, ConfigEntry::StringEntry(s))
+}
+
 array_entry -> (String, ConfigEntry) = n:name whitespace? "[" whitespace? "]" whitespace? "=" whitespace? a:array {
     (n, ConfigEntry::ArrayEntry(a))
 }
@@ -58,9 +72,9 @@ array_expansion_entry -> (String, ConfigEntry) = n:name whitespace? "[" whitespa
     }))
 }
 
-entry -> (String, ConfigEntry) = e:(class / var_entry / array_entry / array_expansion_entry) whitespace? ";" {
-    e
-}
+entry -> (String, ConfigEntry) =
+    e:(class / array_entry / array_expansion_entry / var_entry) whitespace? ";" { e } /
+    e:unquoted_string_entry whitespace? ";" { e }
 
 entries -> Vec<(String, ConfigEntry)> = entry ** (whitespace?)
 

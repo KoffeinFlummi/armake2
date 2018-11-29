@@ -5,7 +5,9 @@ authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>"]
 build = "build.rs"
 
 [dependencies]
+colored = "1.6"
 time = "0.1"
+byteorder = "1"
 docopt = "1"
 serde = "1.0"
 serde_derive = "1.0"

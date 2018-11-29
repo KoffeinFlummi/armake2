@@ -10,6 +10,8 @@ dependencies = [
 name = "armake2"
 version = "0.1.0"
 dependencies = [
+ "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "colored 1.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "docopt 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "peg 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -18,9 +20,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteorder"
+version = "1.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "cfg-if"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "colored"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "docopt"
@@ -197,7 +212,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [metadata]
 "checksum aho-corasick 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)" = "1e9a933f4e58658d7b12defcf96dc5c720f20832deebe3e0a19efd3b6aaeeb9e"
+"checksum byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "94f88df23a25417badc922ab0f5716cc1330e87f71ddd9203b3a3ccd9cedf75d"
 "checksum cfg-if 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "082bb9b28e00d3c9d39cc03e64ce4cea0f1bb9b3fde493f0cbc008472d22bdf4"
+"checksum colored 1.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dc0a60679001b62fb628c4da80e574b9645ab4646056d7c9018885efffe45533"
 "checksum docopt 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "db2906c2579b5b7207fc1e328796a9a8835dc44e22dbe8e460b1d636f9a7b225"
 "checksum lazy_static 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a374c89b9db55895453a74c1e38861d9deec0b01b405a82516e9d5de4820dea1"
 "checksum libc 0.2.44 (registry+https://github.com/rust-lang/crates.io-index)" = "10923947f84a519a45c8fefb7dd1b3e8c08747993381adee176d7a82b4195311"

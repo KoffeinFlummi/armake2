@@ -1,15 +1,20 @@
 #[macro_use]
 extern crate serde_derive;
 extern crate docopt;
+extern crate colored;
+extern crate byteorder;
 
 use std::io;
 use std::io::{Read};
+use std::path::PathBuf;
+use std::env::current_dir;
 use std::fs;
 
 use docopt::Docopt;
 
 mod armake;
 use armake::io::{Input, Output};
+use armake::preprocess;
 use armake::rapify;
 use armake::derapify;
 
@@ -64,26 +69,36 @@ fn main() {
         std::process::exit(0);
     }
 
-    let input: Input = if args.arg_source == "" {
+    let mut input: Input = if args.arg_source == "" {
         let mut buffer: Box<Vec<u8>> = Box::new(Vec::new());
         io::stdin().read_to_end(&mut buffer).unwrap();
         Input::Cursor(io::Cursor::new((*buffer).into_boxed_slice()))
     } else {
-        Input::File(fs::File::open(args.arg_source).expect("Could not open input file"))
+        Input::File(fs::File::open(&args.arg_source).expect("Could not open input file"))
     };
 
-    let output: Output = if args.arg_target == "" {
+    let mut output: Output = if args.arg_target == "" {
         Output::Standard(io::stdout())
     } else {
-        Output::File(fs::File::create(args.arg_target).expect("Could not open output file"))
+        Output::File(fs::File::create(&args.arg_target).expect("Could not open output file"))
+    };
+
+    let path = if args.arg_source == "" {
+        None
+    } else {
+        Some(PathBuf::from(&args.arg_source))
     };
 
     if args.cmd_rapify {
-        std::process::exit(rapify::cmd_rapify(input, output));
+        std::process::exit(rapify::cmd_rapify(input, output, path));
     }
 
     if args.cmd_derapify {
-        std::process::exit(derapify::cmd_derapify(input, output));
+        std::process::exit(derapify::cmd_derapify(&mut input, &mut output));
+    }
+
+    if args.cmd_preprocess {
+        std::process::exit(preprocess::cmd_preprocess(&mut input, &mut output, path));
     }
 
     unreachable!();

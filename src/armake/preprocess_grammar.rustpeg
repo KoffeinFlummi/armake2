@@ -1,0 +1,108 @@
+use std::str;
+use armake::preprocess::*;
+
+newline = "\r\n" / "\n"
+
+name -> String = n:$([a-zA-Z0-9_]+) {
+    n.to_string()
+}
+
+include_path -> String =
+    "\"" path:$([^\"]*) "\"" { path.to_string() } /
+    "<" path:$([^>]*) ">"   { path.to_string() }
+
+parameters -> Vec<String> = [ \t]* "(" [ \t]* p:(name ** ([ \t]* "," [ \t]*)) [ \t]* ")" {
+    p
+}
+
+definition -> Definition = n:name p:parameters? [ \t]+ v:(token *) {
+    Definition {
+        name: n,
+        parameters: p,
+        value: v
+    }
+}
+
+directive -> Directive =
+    "#" [ \t]* "include" [ \t]+ path:include_path { Directive::IncludeDirective(path) } /
+    "#" [ \t]* "define" [ \t]+ d:definition { Directive::DefineDirective(d) } /
+    "#" [ \t]* "undef" [ \t]+ n:name { Directive::UndefDirective(n) } /
+    "#" [ \t]* "ifdef" [ \t]+ n:name { Directive::IfDefDirective(n) } /
+    "#" [ \t]* "ifndef" [ \t]+ n:name { Directive::IfNDefDirective(n) } /
+    "#" [ \t]* "else" { Directive::ElseDirective } /
+    "#" [ \t]* "endif" { Directive::EndIfDirective }
+
+arg_rec = "(" (arg_rec / "\\\\" / ("\\" newline) / [^\r\n)])* ")"
+
+argument -> String = a:$((arg_rec / "\\\\" / ("\\" newline) / [^\r\n,)])*) {
+    a.to_string()
+}
+
+pub arguments -> Vec<String> = [ \t]* "(" [ \t]* a:(argument ** ([ \t]* "," [ \t]*)) [ \t]* ")" {
+    a
+}
+
+nonmacro_token -> String = s:$((!macro_proper !comment_token !concat_token ("\\\\" / ("\\" newline) / [^'\"\r\n]))+) {
+    s.to_string()
+}
+
+string_token -> String =
+    s:$("\"" ("\"\"" / [^\r\n\"])* "\"") { String::from(s) } /
+    s:$("'" ("''" / [^\r\n'])* "'") { String::from(s) }
+
+reserved_token -> String = s:$("class" / "delete") {
+    s.to_string()
+}
+
+pub macro_proper -> Macro = quoted:"#"? n:name args:arguments? {
+    Macro {
+        name: n,
+        arguments: args,
+        original: String::new(),
+        quoted: quoted.is_some()
+    }
+}
+
+macro_token -> Macro = original:$(macro_proper) {
+    //println!("parsing macro: {}", original.to_string());
+    let parsed = parse_macro(original);
+    //println!("done");
+    parsed
+    //Macro { name: original.to_string(), arguments: None, original: original.to_string(), quoted: false }
+}
+
+concat_token = "##"
+
+sl_comment -> Comment = "//" (!newline .)* &newline {
+    Comment {
+        newlines: 0
+    }
+}
+
+ml_comment -> Comment = "/*" content:$((!"*/" (newline / .))*) "*/" {
+    Comment {
+        newlines: content.chars().filter(|c| c == &'\n').count() as u32
+    }
+}
+
+comment_token -> Comment = sl_comment / ml_comment
+
+token -> Token =
+    c:comment_token { Token::CommentToken(c) } /
+    s:string_token { Token::RegularToken(s) } /
+    s:reserved_token { Token::RegularToken(s) } /
+    concat_token { Token::ConcatToken } /
+    m:macro_token { Token::MacroToken(m) } /
+    nm:nonmacro_token { Token::RegularToken(nm) }
+
+pub tokens -> Vec<Token> = t:(token*) {
+    t
+}
+
+line -> Line =
+    [ \t]* d:directive [ \t]* { Line::DirectiveLine(d) } /
+    [ \t]* t:tokens { Line::TokenLine(t) }
+
+pub file -> Vec<Line> = lines:(line ** (newline)) !. {
+    lines
+}
