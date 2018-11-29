@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use colored::*;
+use time::precise_time_s;
 
 use armake::config::{Config};
 
@@ -15,7 +16,11 @@ pub fn cmd_rapify<I: Read, O: Write>(input: I, output: O, path: Option<PathBuf>)
         }
     }
 
+    let t = precise_time_s();
+
     config.write_rapified(output).expect("Failed to write rapified config");
+
+    //println!("writing: {}", precise_time_s() - t);
 
     0
 }

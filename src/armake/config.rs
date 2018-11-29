@@ -1,11 +1,12 @@
 use std::str;
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader};
+use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::cell::{RefCell};
 use std::iter::{Sum};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use colored::*;
+use time::*;
 
 use armake::preprocess::*;
 
@@ -408,28 +409,37 @@ impl Config {
     }
 
     pub fn write_rapified<O: Write>(&self, mut output: O) -> Result<(), Error> {
-        output.write_all(b"\0raP")?;
-        output.write_all(b"\0\0\0\0\x08\0\0\0")?; // always_0, always_8
+        let mut writer = BufWriter::new(output);
+
+        writer.write_all(b"\0raP")?;
+        writer.write_all(b"\0\0\0\0\x08\0\0\0")?; // always_0, always_8
 
         let mut buffer: Box<[u8]> = vec![0; self.root_body.rapified_length()].into_boxed_slice();
         let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-        self.root_body.write_rapified(&mut cursor, 16).expect("Failed to rapify root class");
+        self.root_body.write_rapified(&mut writer, 16).expect("Failed to rapify root class");
 
         let enum_offset: u32 = 16 + cursor.get_ref().len() as u32;
-        output.write_u32::<LittleEndian>(enum_offset)?;
+        writer.write_u32::<LittleEndian>(enum_offset)?;
 
-        output.write_all(cursor.get_ref())?;
+        writer.write_all(cursor.get_ref())?;
 
-        output.write_all(b"\0\0\0\0")?;
+        writer.write_all(b"\0\0\0\0")?;
 
         Ok(())
     }
 
     pub fn read<I: Read>(mut input: I, path: Option<PathBuf>) -> Result<Config, String> {
+        let mut t = precise_time_s();
+
         let mut buffer = String::new();
         input.read_to_string(&mut buffer).expect("Failed to read input file");
 
+        //println!("reading: {}", precise_time_s() - t);
+        t = precise_time_s();
+
         let (preprocessed, info) = preprocess(buffer, path).expect("Failed to preprocess config");
+
+        //println!("preprocessing: {}", precise_time_s() - t);
 
         let result = config_grammar::config(&preprocessed);
         match result {
@@ -471,7 +481,7 @@ impl Config {
     }
 }
 
-fn read_cstring<I: Read>(input: &mut I) -> String {
+pub fn read_cstring<I: Read>(input: &mut I) -> String {
     let mut bytes: Vec<u8> = Vec::new();
     for byte in input.bytes() {
         let b = byte.unwrap();
