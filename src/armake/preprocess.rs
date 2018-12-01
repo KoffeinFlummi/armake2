@@ -246,8 +246,14 @@ fn read_prefix(prefix_path: &Path) -> String {
     content.split("\n").nth(0).unwrap().to_string()
 }
 
+fn pathsep() -> &'static str {
+    if cfg!(windows) { "\\" } else { "/" }
+}
+
 fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
-    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", "/"));
+    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
+
+    println!("{:?} {:?}", path, include_pathbuf);
 
     if path.file_name() != include_pathbuf.file_name() { return false; }
 
@@ -265,9 +271,10 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
             prefix
         };
 
-        let prefix_pathbuf = PathBuf::from(prefix.replace("\\", "/"));
+        let prefix_pathbuf = PathBuf::from(prefix.replace("\\", pathsep()));
 
-        let relative = include_pathbuf.strip_prefix(parent).unwrap();
+        println!("{:?}", parent);
+        let relative = path.strip_prefix(parent).unwrap();
         let test_path = prefix_pathbuf.join(relative);
 
         if test_path == include_pathbuf {
@@ -279,6 +286,8 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
 }
 
 fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf> {
+    println!("searching for {} in {:?}", include_path, directory);
+
     for entry in read_dir(&directory).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -297,9 +306,11 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
         }
     }
 
-    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", "/"));
-    let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", "/");
+    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
+    let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", pathsep());
     let direct_pathbuf = PathBuf::from(direct_path);
+
+    println!("{:?}", direct_pathbuf);
 
     if direct_pathbuf.is_file() {
         return Some(direct_pathbuf);

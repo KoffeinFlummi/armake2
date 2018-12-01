@@ -5,8 +5,8 @@ use std::collections::{HashMap};
 use std::path::{PathBuf};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use openssl::hash::{Hasher, MessageDigest};
-use time::*;
+use openssl::hash::{Hasher, MessageDigest, DigestBytes};
+use linked_hash_map::LinkedHashMap;
 
 use armake::config::*;
 
@@ -20,9 +20,10 @@ struct PBOHeader {
 }
 
 pub struct PBO {
-    files: HashMap<String, Cursor<Box<[u8]>>>,
-    header_extensions: HashMap<String, String>,
-    headers: Vec<PBOHeader>
+    pub files: LinkedHashMap<String, Cursor<Box<[u8]>>>,
+    pub header_extensions: HashMap<String, String>,
+    headers: Vec<PBOHeader>,
+    pub checksum: Option<Vec<u8>>
 }
 
 impl PBOHeader {
@@ -50,7 +51,7 @@ impl PBOHeader {
 }
 
 impl PBO {
-    fn read<I: Read>(input: &mut I) -> Result<PBO, Error> {
+    pub fn read<I: Read>(input: &mut I) -> Result<PBO, Error> {
         let mut headers: Vec<PBOHeader> = Vec::new();
         let mut first = true;
         let mut header_extensions: HashMap<String, String> = HashMap::new();
@@ -77,23 +78,28 @@ impl PBO {
             first = false;
         }
 
-        let mut files: HashMap<String, Cursor<Box<[u8]>>> = HashMap::new();
+        let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         for header in &headers {
             let mut buffer: Box<[u8]> = vec![0; header.data_size as usize].into_boxed_slice();
             input.read_exact(&mut buffer)?;
             files.insert(header.filename.clone(), Cursor::new(buffer));
         }
 
+        input.bytes().next();
+        let mut checksum = vec![0; 20];
+        input.read_exact(&mut checksum)?;
+
         Ok(PBO {
             files: files,
             header_extensions: header_extensions,
-            headers: headers
+            headers: headers,
+            checksum: Some(checksum)
         })
     }
 
     fn from_directory(directory: PathBuf) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
-        let mut files: HashMap<String, Cursor<Box<[u8]>>> = HashMap::new();
+        let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
 
         for path in file_list {
@@ -103,7 +109,6 @@ impl PBO {
             let mut file = File::open(&path)?;
 
             if name == "$PBOPREFIX$" {
-                // @todo: do this properly
                 let mut content = String::new();
                 file.read_to_string(&mut content);
                 for l in content.split("\n") {
@@ -134,7 +139,8 @@ impl PBO {
         Ok(PBO {
             files: files,
             header_extensions: header_extensions,
-            headers: Vec::new()
+            headers: Vec::new(),
+            checksum: None
         })
     }
 
@@ -203,6 +209,41 @@ impl PBO {
         output.write_all(&*h.finish().unwrap())?;
 
         Ok(())
+    }
+
+    pub fn namehash(&self) -> DigestBytes {
+        let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.to_lowercase(),b)).collect();
+        files_sorted.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
+
+        for (name, _) in &files_sorted {
+            h.update(name.as_bytes());
+        }
+
+        h.finish().unwrap()
+    }
+
+    pub fn filehash(&self) -> DigestBytes {
+        let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
+        let mut nothing = true;
+
+        for (name, cursor) in self.files.iter() {
+            let ext = name.split(".").last().unwrap();
+
+            if ext == "paa" || ext == "jpg" || ext == "p3d" ||
+                ext == "tga" || ext == "rvmat" || ext == "lip" ||
+                ext == "ogg" || ext == "wss" || ext == "png" ||
+                ext == "rtm" || ext == "pac" || ext == "fxy" ||
+                ext == "wrp" { continue; }
+
+            h.update(cursor.get_ref()).unwrap();
+            nothing = false;
+        }
+
+        if nothing { h.update(b"nothing"); }
+
+        h.finish().unwrap()
     }
 }
 

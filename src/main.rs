@@ -4,6 +4,7 @@ extern crate docopt;
 extern crate colored;
 extern crate byteorder;
 extern crate time;
+extern crate linked_hash_map;
 extern crate openssl;
 
 use std::io;
@@ -20,6 +21,7 @@ use armake::preprocess;
 use armake::rapify;
 use armake::derapify;
 use armake::pbo;
+use armake::sign;
 
 const USAGE: &'static str = "
 armake2
@@ -33,6 +35,8 @@ Usage:
     armake2 preprocess [-f] [-w <wname>]... [-i <includefolder>]... [<source> [<target>]]
     armake2 rapify [-f] [-w <wname>]... [-i <includefolder>]... [<source> [<target>]]
     armake2 derapify [-f] [<source> [<target>]]
+    armake2 keygen [-f] <keyname>
+    armake2 sign [-f] [-s <signature>] <privatekey> <pbo>
     armake2 (-h | --help)
     armake2 --version
 
@@ -49,6 +53,7 @@ Options:
     -w --warning <wname>        Warning to disable (repeatable).
     -i --include <includefolder>    Folder to search for includes, defaults to CWD (repeatable).
                                     For unpack: pattern to include in output folder (repeatable).
+    -s --signature <signature>  Signature to use for signing the PBO.
     -h --help                   Show usage information and exit.
     -v --version                Print the version number and exit.
 ";
@@ -63,10 +68,13 @@ struct Args {
     cmd_preprocess: bool,
     cmd_rapify: bool,
     cmd_derapify: bool,
+    cmd_keygen: bool,
+    cmd_sign: bool,
     flag_version: bool,
     flag_force: bool,
     flag_warning: bool,
     flag_include: bool,
+    flag_signature: bool,
     arg_wname: Vec<String>,
     arg_includefolder: Vec<String>,
     arg_source: String,
@@ -74,6 +82,9 @@ struct Args {
     arg_filename: String,
     arg_sourcefolder: String,
     arg_targetfolder: String,
+    arg_keyname: String,
+    arg_privatekey: String,
+    arg_pbo: String
 }
 
 fn get_input(args: &Args) -> Input {
@@ -138,6 +149,14 @@ fn main() {
 
     if args.cmd_pack {
         std::process::exit(pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)));
+    }
+
+    if args.cmd_keygen {
+        std::process::exit(sign::cmd_keygen(PathBuf::from(&args.arg_keyname)));
+    }
+
+    if args.cmd_sign {
+        std::process::exit(sign::cmd_sign(PathBuf::from(&args.arg_privatekey), PathBuf::from(&args.arg_pbo)));
     }
 
     unreachable!();
