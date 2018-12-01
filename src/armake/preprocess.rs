@@ -253,7 +253,7 @@ fn pathsep() -> &'static str {
 fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
     let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
 
-    println!("{:?} {:?}", path, include_pathbuf);
+    //println!("{:?} {:?}", path, include_pathbuf);
 
     if path.file_name() != include_pathbuf.file_name() { return false; }
 
@@ -273,7 +273,7 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
 
         let prefix_pathbuf = PathBuf::from(prefix.replace("\\", pathsep()));
 
-        println!("{:?}", parent);
+        //println!("{:?}", parent);
         let relative = path.strip_prefix(parent).unwrap();
         let test_path = prefix_pathbuf.join(relative);
 
@@ -286,7 +286,7 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
 }
 
 fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf> {
-    println!("searching for {} in {:?}", include_path, directory);
+    //println!("searching for {} in {:?}", include_path, directory);
 
     for entry in read_dir(&directory).unwrap() {
         let path = entry.unwrap().path();
@@ -310,7 +310,7 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
     let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", pathsep());
     let direct_pathbuf = PathBuf::from(direct_path);
 
-    println!("{:?}", direct_pathbuf);
+    //println!("{:?}", direct_pathbuf);
 
     if direct_pathbuf.is_file() {
         return Some(direct_pathbuf);
@@ -319,7 +319,7 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
     None
 }
 
-fn find_include_file(include_path: &String, origin: &Option<PathBuf>, search_paths: Vec<String>) -> Result<PathBuf, Error> {
+pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_paths: &Vec<String>) -> Result<PathBuf, Error> {
     if include_path.chars().nth(0).unwrap() != '\\' {
         let mut path = PathBuf::from(&include_path);
 
@@ -374,7 +374,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                     let mut search_paths: Vec<String> = Vec::new();
                     search_paths.push(".".to_string());
 
-                    let file_path = find_include_file(&path, &origin, search_paths)?;
+                    let file_path = find_include_file(&path, origin.as_ref(), &search_paths)?;
 
                     info.import_stack.push(file_path.clone());
 
@@ -447,7 +447,6 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 
         if level > 0 {
             // @todo: complain
-            unreachable!();
         }
     }
 

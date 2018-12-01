@@ -408,7 +408,7 @@ impl Config {
         self.root_body.write(output, 0)
     }
 
-    pub fn write_rapified<O: Write>(&self, mut output: O) -> Result<(), Error> {
+    pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         let mut writer = BufWriter::new(output);
 
         writer.write_all(b"\0raP")?;
@@ -416,7 +416,7 @@ impl Config {
 
         let mut buffer: Box<[u8]> = vec![0; self.root_body.rapified_length()].into_boxed_slice();
         let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-        self.root_body.write_rapified(&mut writer, 16).expect("Failed to rapify root class");
+        self.root_body.write_rapified(&mut cursor, 16).expect("Failed to rapify root class");
 
         let enum_offset: u32 = 16 + cursor.get_ref().len() as u32;
         writer.write_u32::<LittleEndian>(enum_offset)?;
@@ -428,7 +428,17 @@ impl Config {
         Ok(())
     }
 
-    pub fn read<I: Read>(mut input: I, path: Option<PathBuf>) -> Result<Config, String> {
+    pub fn to_cursor(&self) -> Result<Cursor<Box<[u8]>>, Error> {
+        let len = self.root_body.rapified_length() + 20;
+
+        let mut buffer: Box<[u8]> = vec![0; len].into_boxed_slice();
+        let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
+        self.write_rapified(&mut cursor)?;
+
+        Ok(cursor)
+    }
+
+    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>) -> Result<Config, String> {
         let mut t = precise_time_s();
 
         let mut buffer = String::new();
@@ -550,7 +560,7 @@ fn read_i32<I: Read>(input: &mut I) -> i32 {
     input.read_i32::<LittleEndian>().unwrap()
 }
 
-fn read_f32<I: Read>(input: &mut I) -> f32 {
+pub fn read_f32<I: Read>(input: &mut I) -> f32 {
     let mut buffer = [0; 4];
     input.read_exact(&mut buffer).unwrap();
     unsafe { std::mem::transmute::<[u8; 4], f32>(buffer) }

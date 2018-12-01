@@ -5,3 +5,5 @@ pub mod derapify;
 pub mod preprocess;
 pub mod pbo;
 pub mod sign;
+pub mod p3d;
+pub mod binarize;

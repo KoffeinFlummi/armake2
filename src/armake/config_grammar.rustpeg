@@ -108,7 +108,7 @@ external_class -> (String, ConfigEntry) = "class" whitespace+ n:name {
     }))
 }
 
-deleted_class -> (String, ConfigEntry) = "deleted" whitespace+ n:name {
+deleted_class -> (String, ConfigEntry) = "delete" whitespace+ n:name {
     (n, ConfigEntry::ClassEntry(ConfigClass {
         parent: String::from(""),
         is_external: false,

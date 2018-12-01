@@ -4,6 +4,7 @@ use std::fs::{File, create_dir_all, read_dir};
 use std::collections::{HashMap};
 use std::path::{PathBuf};
 
+use colored::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 use linked_hash_map::LinkedHashMap;
@@ -48,6 +49,28 @@ impl PBOHeader {
         output.write_u32::<LittleEndian>(self.data_size)?;
         Ok(())
     }
+}
+
+fn matches_glob(s: &String, pattern: &String) -> bool {
+    if let Some(index) = pattern.find('*') {
+        if s[..index] != pattern[..index] { return false; }
+
+        for i in (index+1)..(s.len()-1) {
+            if matches_glob(&s[i..].to_string(), &pattern[(index+1)..].to_string()) { return true; }
+        }
+
+        false
+    } else {
+        s == pattern
+    }
+}
+
+fn file_allowed(name: &String, exclude_patterns: &Vec<String>) -> bool {
+    for pattern in exclude_patterns {
+        if matches_glob(&name, &pattern) { return false; }
+    }
+
+    true
 }
 
 impl PBO {
@@ -97,7 +120,7 @@ impl PBO {
         })
     }
 
-    fn from_directory(directory: PathBuf) -> Result<PBO, Error> {
+    fn from_directory(directory: PathBuf, binarize: bool, exclude_patterns: Vec<String>) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
@@ -105,6 +128,8 @@ impl PBO {
         for path in file_list {
             let relative = path.strip_prefix(&directory).unwrap();
             let name: String = relative.to_str().unwrap().replace("/", "\\");
+
+            if !file_allowed(&name, &exclude_patterns) { continue; }
 
             let mut file = File::open(&path)?;
 
@@ -121,14 +146,18 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
+            } else if name == "config.cpp" {
+                let config = Config::read(&mut file, Some(path.clone())).expect("@todo");
 
-                continue;
+                let cursor = config.to_cursor().expect("failed to write cursor @todo");
+
+                files.insert("config.bin".to_string(), cursor);
+            } else {
+                let mut buffer: Vec<u8> = Vec::new();
+                file.read_to_end(&mut buffer)?;
+
+                files.insert(name, Cursor::new(buffer.into_boxed_slice()));
             }
-
-            let mut buffer: Vec<u8> = Vec::new();
-            file.read_to_end(&mut buffer)?;
-
-            files.insert(name, Cursor::new(buffer.into_boxed_slice()));
         }
 
         if header_extensions.get("prefix").is_none() {
@@ -326,14 +355,18 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> i32 {
     0
 }
 
-pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O) -> i32 {
-    let pbo = PBO::from_directory(input).expect("Failed to read directory");
+pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, excludes: Vec<String>) -> i32 {
+    let pbo = PBO::from_directory(input, false, excludes).expect("Failed to read directory");
 
     pbo.write(output).expect("Failed to write PBO");
 
     0
 }
 
-pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O) -> i32 {
+pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, excludes: Vec<String>) -> i32 {
+    let pbo = PBO::from_directory(input, true, excludes).expect("Failed to read directory");
+
+    pbo.write(output).expect("Failed to write PBO");
+
     0
 }

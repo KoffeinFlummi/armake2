@@ -6,7 +6,7 @@ use time::precise_time_s;
 
 use armake::config::{Config};
 
-pub fn cmd_rapify<I: Read, O: Write>(input: I, output: O, path: Option<PathBuf>) -> i32 {
+pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>) -> i32 {
     let config: Config;
     match Config::read(input, path) {
         Ok(cfg) => { config = cfg; },

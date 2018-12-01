@@ -7,6 +7,9 @@ extern crate time;
 extern crate linked_hash_map;
 extern crate openssl;
 
+#[cfg(windows)]
+extern crate winreg;
+
 use std::io;
 use std::io::{Read};
 use std::path::PathBuf;
@@ -22,12 +25,14 @@ use armake::rapify;
 use armake::derapify;
 use armake::pbo;
 use armake::sign;
+use armake::binarize;
 
 const USAGE: &'static str = "
 armake2
 
 Usage:
-    armake2 build [-f] [-w <wname>]... [-i <includefolder>]... <sourcefolder> [<target>]
+    armake2 binarize [-f] [-w <wname>]... [-i <includefolder>]... <source> <target>
+    armake2 build [-f] [-w <wname>]... [-i <includefolder>]... [-x <excludepattern>]... <sourcefolder> [<target>]
     armake2 pack [-f] <sourcefolder> [<target>]
     armake2 inspect [<source>]
     armake2 cat <source> <filename> [<target>]
@@ -53,6 +58,8 @@ Options:
     -w --warning <wname>        Warning to disable (repeatable).
     -i --include <includefolder>    Folder to search for includes, defaults to CWD (repeatable).
                                     For unpack: pattern to include in output folder (repeatable).
+    -x --exclude <excludepattern>   Glob pattern to exclude from PBO.
+                                    For unpack: pattern to exclude from output folder.
     -s --signature <signature>  Signature to use for signing the PBO.
     -h --help                   Show usage information and exit.
     -v --version                Print the version number and exit.
@@ -60,6 +67,7 @@ Options:
 
 #[derive(Debug, Deserialize)]
 struct Args {
+    cmd_binarize: bool,
     cmd_build: bool,
     cmd_pack: bool,
     cmd_inspect: bool,
@@ -74,9 +82,11 @@ struct Args {
     flag_force: bool,
     flag_warning: bool,
     flag_include: bool,
+    flag_exclude: bool,
     flag_signature: bool,
     arg_wname: Vec<String>,
     arg_includefolder: Vec<String>,
+    arg_excludepattern: Vec<String>,
     arg_source: String,
     arg_target: String,
     arg_filename: String,
@@ -123,8 +133,12 @@ fn main() {
         Some(PathBuf::from(&args.arg_source))
     };
 
+    if args.cmd_binarize {
+        std::process::exit(binarize::cmd_binarize(PathBuf::from(&args.arg_source), PathBuf::from(&args.arg_target)));
+    }
+
     if args.cmd_rapify {
-        std::process::exit(rapify::cmd_rapify(get_input(&args), get_output(&args), path));
+        std::process::exit(rapify::cmd_rapify(&mut get_input(&args), &mut get_output(&args), path));
     }
 
     if args.cmd_derapify {
@@ -133,6 +147,14 @@ fn main() {
 
     if args.cmd_preprocess {
         std::process::exit(preprocess::cmd_preprocess(&mut get_input(&args), &mut get_output(&args), path));
+    }
+
+    if args.cmd_build {
+        std::process::exit(pbo::cmd_build(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args), args.arg_excludepattern));
+    }
+
+    if args.cmd_pack {
+        std::process::exit(pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args), args.arg_excludepattern));
     }
 
     if args.cmd_inspect {
@@ -145,10 +167,6 @@ fn main() {
 
     if args.cmd_unpack {
         std::process::exit(pbo::cmd_unpack(&mut get_input(&args), PathBuf::from(&args.arg_targetfolder)));
-    }
-
-    if args.cmd_pack {
-        std::process::exit(pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)));
     }
 
     if args.cmd_keygen {
