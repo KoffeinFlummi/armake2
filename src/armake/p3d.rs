@@ -1,13 +1,10 @@
-use std::str;
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
-use std::fs::{File, create_dir_all, read_dir};
+use std::io::{Read, Error, BufReader};
 use std::collections::{HashMap};
-use std::path::{PathBuf};
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 use linked_hash_map::LinkedHashMap;
 
-use armake::config::*;
+use armake::io::*;
 
 pub struct Point {
     pub coords: (f32, f32, f32),
@@ -52,7 +49,7 @@ pub struct P3D {
 impl Point {
     fn read<I: Read>(input: &mut I) -> Result<Point, Error> {
         Ok(Point {
-            coords: (read_f32(input), read_f32(input), read_f32(input)),
+            coords: (input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?),
             flags: input.read_u32::<LittleEndian>()?
         })
     }
@@ -63,7 +60,7 @@ impl Vertex {
         Ok(Vertex {
             point_index: input.read_u32::<LittleEndian>()?,
             normal_index: input.read_u32::<LittleEndian>()?,
-            uv: (read_f32(input), read_f32(input))
+            uv: (input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?)
         })
     }
 }
@@ -74,7 +71,7 @@ impl Face {
         assert!(num_verts == 3 || num_verts == 4);
 
         let mut verts: Vec<Vertex> = Vec::with_capacity(num_verts as usize);
-        for i in 0..num_verts {
+        for _i in 0..num_verts {
             verts.push(Vertex::read(input)?);
         }
 
@@ -83,8 +80,8 @@ impl Face {
         }
 
         let flags = input.read_u32::<LittleEndian>()?;
-        let texture = read_cstring(input);
-        let material = read_cstring(input);
+        let texture = input.read_cstring()?;
+        let material = input.read_cstring()?;
 
         Ok(Face {
             vertices: verts,
@@ -111,17 +108,17 @@ impl LOD {
         input.bytes().nth(3);
 
         let mut points: Vec<Point> = Vec::with_capacity(num_points as usize);
-        for i in 0..num_points {
+        for _i in 0..num_points {
             points.push(Point::read(input)?);
         }
 
         let mut face_normals: Vec<(f32, f32, f32)> = Vec::with_capacity(num_face_normals as usize);
-        for i in 0..num_face_normals {
-            face_normals.push((read_f32(input), read_f32(input), read_f32(input)));
+        for _i in 0..num_face_normals {
+            face_normals.push((input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?));
         }
 
         let mut faces: Vec<Face> = Vec::with_capacity(num_faces as usize);
-        for i in 0..num_faces {
+        for _i in 0..num_faces {
             faces.push(Face::read(input)?);
         }
 
@@ -131,7 +128,7 @@ impl LOD {
         loop {
             input.bytes().next();
 
-            let name = read_cstring(input);
+            let name = input.read_cstring()?;
             let size = input.read_u32::<LittleEndian>()?;
             let mut buffer = vec![0; size as usize].into_boxed_slice();
             input.read_exact(&mut buffer)?;
@@ -140,7 +137,7 @@ impl LOD {
             // @todo: handle others
         }
 
-        let resolution = read_f32(input);
+        let resolution = input.read_f32::<LittleEndian>()?;
 
         Ok(LOD {
             version_major: version_major,
@@ -168,7 +165,7 @@ impl P3D {
         let num_lods = reader.read_u32::<LittleEndian>()?;
         let mut lods: Vec<LOD> = Vec::with_capacity(num_lods as usize);
 
-        for i in 0..num_lods {
+        for _i in 0..num_lods {
             lods.push(LOD::read(&mut reader)?);
         }
 

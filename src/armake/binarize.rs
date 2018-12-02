@@ -1,7 +1,6 @@
-use std::str;
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
+use std::io::{Error};
 use std::fs::{File, create_dir_all, copy, remove_dir_all};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashSet};
 use std::path::{PathBuf};
 use std::env::temp_dir;
 use std::process::Command;
@@ -26,7 +25,6 @@ fn find_binarize_exe() -> Result<PathBuf, Error> {
 #[cfg(unix)]
 fn find_binarize_exe() -> Result<PathBuf, Error> {
     unreachable!();
-    Ok(PathBuf::new())
 }
 
 fn extract_dependencies(input: &PathBuf) -> Result<Vec<String>, Error> {
@@ -50,10 +48,10 @@ fn extract_dependencies(input: &PathBuf) -> Result<Vec<String>, Error> {
 }
 
 fn create_temp_directory(name: &String) -> Result<PathBuf, Error> {
-    let mut dir = temp_dir();
+    let dir = temp_dir();
     let mut i = 0;
 
-    let mut path = PathBuf::new();
+    let mut path;
     loop {
         path = dir.join(format!("armake_{}_{}", name, i));
         if !path.exists() { break; }
@@ -80,7 +78,7 @@ pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> i32 {
         return 2;
     }
 
-    let mut dependencies = if input.extension().unwrap() == "p3d" {
+    let dependencies = if input.extension().unwrap() == "p3d" {
         extract_dependencies(&input).expect("Failed to read P3D")
     } else {
         Vec::new()
@@ -115,7 +113,7 @@ pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> i32 {
                 create_dir_all(target.parent().unwrap()).expect("Failed to copy dependency");
                 copy(real_path, target).expect("Failed to copy dependency");
             },
-            Err(msg) => {
+            Err(_msg) => {
                 println!("Failed to find {}", include_path);
             }
         }
@@ -130,8 +128,8 @@ pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> i32 {
     let result_path = output_tempdir.join(name);
     copy(result_path, output).expect("Failed to copy result");
 
-    remove_dir_all(input_tempdir);
-    remove_dir_all(output_tempdir);
+    remove_dir_all(input_tempdir).expect("Failed to remove temp directory");
+    remove_dir_all(output_tempdir).expect("Failed to remove temp directory");
 
     0
 }

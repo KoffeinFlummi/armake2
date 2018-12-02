@@ -1,14 +1,13 @@
-use std::str;
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
+use std::io::{Read, Write, Error, Cursor};
 use std::fs::{File, create_dir_all, read_dir};
 use std::collections::{HashMap};
 use std::path::{PathBuf};
 
-use colored::*;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 use linked_hash_map::LinkedHashMap;
 
+use armake::io::*;
 use armake::config::*;
 
 struct PBOHeader {
@@ -30,7 +29,7 @@ pub struct PBO {
 impl PBOHeader {
     fn read<I: Read>(input: &mut I) -> Result<PBOHeader, Error> {
         Ok(PBOHeader {
-            filename: read_cstring(input),
+            filename: input.read_cstring()?,
             packing_method: input.read_u32::<LittleEndian>()?,
             original_size: input.read_u32::<LittleEndian>()?,
             reserved: input.read_u32::<LittleEndian>()?,
@@ -40,8 +39,7 @@ impl PBOHeader {
     }
 
     fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
-        output.write_all(self.filename.as_bytes())?;
-        output.write_all(b"\0")?;
+        output.write_cstring(&self.filename)?;
         output.write_u32::<LittleEndian>(self.packing_method)?;
         output.write_u32::<LittleEndian>(self.original_size)?;
         output.write_u32::<LittleEndian>(self.reserved)?;
@@ -87,10 +85,10 @@ impl PBO {
                 if !first { unreachable!(); }
 
                 loop {
-                    let s = read_cstring(input);
+                    let s = input.read_cstring()?;
                     if s.len() == 0 { break; }
 
-                    header_extensions.insert(s, read_cstring(input));
+                    header_extensions.insert(s, input.read_cstring()?);
                 }
             } else if header.filename == "" {
                 break;
@@ -135,7 +133,7 @@ impl PBO {
 
             if name == "$PBOPREFIX$" {
                 let mut content = String::new();
-                file.read_to_string(&mut content);
+                file.read_to_string(&mut content)?;
                 for l in content.split("\n") {
                     if l.len() == 0 { break; }
 
@@ -146,7 +144,7 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if name == "config.cpp" {
+            } else if name == "config.cpp" && binarize {
                 let config = Config::read(&mut file, Some(path.clone())).expect("@todo");
 
                 let cursor = config.to_cursor().expect("failed to write cursor @todo");
@@ -184,23 +182,20 @@ impl PBO {
             timestamp: 0,
             data_size: 0
         };
-        ext_header.write(&mut headers);
+        ext_header.write(&mut headers)?;
 
         if let Some(prefix) = self.header_extensions.get("prefix") {
             headers.write_all(b"prefix\0")?;
-            headers.write_all(prefix.as_bytes())?;
-            headers.write_all(b"\0")?;
+            output.write_cstring(prefix)?;
         }
 
         for (key, value) in self.header_extensions.iter() {
             if key == "prefix" { continue; }
 
-            headers.write_all(key.as_bytes())?;
-            headers.write_all(b"\0")?;
-            headers.write_all(value.as_bytes())?;
-            headers.write_all(b"\0")?;
+            output.write_cstring(key)?;
+            output.write_cstring(value)?;
         }
-        headers.write_all(b"\0")?;
+        output.write_cstring("".to_string())?;
 
         let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.clone(),b)).collect();
         files_sorted.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
@@ -226,7 +221,7 @@ impl PBO {
 
         let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
 
-        output.write_all(headers.get_ref());
+        output.write_all(headers.get_ref())?;
         h.update(headers.get_ref()).unwrap();
 
         for (_, cursor) in &files_sorted {
@@ -234,7 +229,7 @@ impl PBO {
             h.update(cursor.get_ref()).unwrap();
         }
 
-        output.write_all(&[0]);
+        output.write_all(&[0])?;
         output.write_all(&*h.finish().unwrap())?;
 
         Ok(())
@@ -247,7 +242,7 @@ impl PBO {
         let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
 
         for (name, _) in &files_sorted {
-            h.update(name.as_bytes());
+            h.update(name.as_bytes()).unwrap();
         }
 
         h.finish().unwrap()
@@ -270,7 +265,7 @@ impl PBO {
             nothing = false;
         }
 
-        if nothing { h.update(b"nothing"); }
+        if nothing { h.update(b"nothing").unwrap(); }
 
         h.finish().unwrap()
     }
@@ -338,18 +333,18 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> i32 {
 
     if pbo.header_extensions.len() > 0 {
         let prefix_path = output.join(PathBuf::from("$PBOPREFIX$"));
-        let mut prefix_file = File::create(prefix_path).expect("Failed to open prefix file.");
+        let mut prefix_file = File::create(prefix_path).expect("Failed to open prefix file");
 
         for (key, value) in pbo.header_extensions.iter() {
-            prefix_file.write_all(format!("{}={}\n", key, value).as_bytes());
+            prefix_file.write_all(format!("{}={}\n", key, value).as_bytes()).expect("Failed to write prefix file");
         }
     }
 
     for (file_name, cursor) in pbo.files.iter() {
         // @todo: windows
         let path = output.join(PathBuf::from(file_name.replace("\\", "/")));
-        let mut file = File::create(path).expect("Failed to open output file.");
-        file.write_all(cursor.get_ref());
+        let mut file = File::create(path).expect("Failed to open output file");
+        file.write_all(cursor.get_ref()).expect("Failed to write output file");
     }
 
     0

@@ -1,13 +1,10 @@
-use std::str;
 use std::env::current_dir;
 use std::clone::Clone;
-use std::io::{Read, Seek, Write, SeekFrom, Error, ErrorKind, Cursor, BufReader};
-use std::fs::{File,read_dir};
-use std::path::{Path,PathBuf};
+use std::io::{Read, Write, Error, ErrorKind};
+use std::fs::{File, read_dir};
+use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::iter::{Sum};
-
-use armake::io::{Input};
 
 mod preprocess_grammar {
     include!(concat!(env!("OUT_DIR"), "/preprocess_grammar.rs"));
@@ -177,12 +174,8 @@ impl Macro {
     }
 
     pub fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, String> {
-        //println!("resolving: {}", self.name);
-        let keys: Vec<&String> = def_map.keys().collect();
-        //println!("keys: {:?}", keys);
         match def_map.get(&self.name) {
             Some(def) => {
-                //println!("found");
                 let value = def.value(&self.arguments, def_map, stack)?;
                 if let Some(tokens) = value {
                     Ok(tokens)
@@ -251,7 +244,7 @@ fn pathsep() -> &'static str {
 }
 
 fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
-    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
+    let include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
 
     //println!("{:?} {:?}", path, include_pathbuf);
 
@@ -286,8 +279,6 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
 }
 
 fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf> {
-    //println!("searching for {} in {:?}", include_path, directory);
-
     for entry in read_dir(&directory).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -306,11 +297,8 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
         }
     }
 
-    let mut include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
     let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", pathsep());
     let direct_pathbuf = PathBuf::from(direct_path);
-
-    //println!("{:?}", direct_pathbuf);
 
     if direct_pathbuf.is_file() {
         return Some(direct_pathbuf);
@@ -355,7 +343,7 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
 }
 
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo) -> Result<String, Error> {
-    let mut lines: Vec<Line> = preprocess_grammar::file(&input).expect("Failed to parse file");
+    let lines: Vec<Line> = preprocess_grammar::file(&input).expect("Failed to parse file");
     let mut output = String::from("");
     let mut original_lineno = 1;
     let mut level = 0;
@@ -475,9 +463,9 @@ pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Op
     let mut buffer = String::new();
     input.read_to_string(&mut buffer).expect("Failed to read input file");
 
-    let (result, info) = preprocess(buffer, path).expect("Failed to preprocess file");
+    let (result, _) = preprocess(buffer, path).expect("Failed to preprocess file");
 
-    output.write_all(result.as_bytes());
+    output.write_all(result.as_bytes()).expect("Failed to write output");
 
     0
 }

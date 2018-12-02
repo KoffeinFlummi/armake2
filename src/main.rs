@@ -13,16 +13,14 @@ extern crate winreg;
 use std::io;
 use std::io::{Read};
 use std::path::PathBuf;
-use std::env::current_dir;
 use std::fs;
 
 use docopt::Docopt;
 
 mod armake;
 use armake::io::{Input, Output};
+use armake::config;
 use armake::preprocess;
-use armake::rapify;
-use armake::derapify;
 use armake::pbo;
 use armake::sign;
 use armake::binarize;
@@ -138,11 +136,11 @@ fn main() {
     }
 
     if args.cmd_rapify {
-        std::process::exit(rapify::cmd_rapify(&mut get_input(&args), &mut get_output(&args), path));
+        std::process::exit(config::cmd_rapify(&mut get_input(&args), &mut get_output(&args), path));
     }
 
     if args.cmd_derapify {
-        std::process::exit(derapify::cmd_derapify(&mut get_input(&args), &mut get_output(&args)));
+        std::process::exit(config::cmd_derapify(&mut get_input(&args), &mut get_output(&args)));
     }
 
     if args.cmd_preprocess {
