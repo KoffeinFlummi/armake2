@@ -1,5 +1,6 @@
 use std::io::{Read, Write, Error, Cursor};
 use std::fs::{File, create_dir_all, read_dir};
+use std::ffi::{OsStr};
 use std::collections::{HashMap};
 use std::path::{PathBuf};
 
@@ -149,7 +150,7 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if binarize && vec!["cpp", "rvmat", "ext"].contains(&path.extension().unwrap().to_str().unwrap()) {
+            } else if binarize && vec!["cpp", "rvmat", "ext"].contains(&path.extension().unwrap_or(OsStr::new("")).to_str().unwrap()) {
                 let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
 
                 let cursor = config.to_cursor()?;
