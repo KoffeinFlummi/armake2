@@ -123,10 +123,14 @@ impl PBO {
         })
     }
 
-    fn from_directory(directory: PathBuf, binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
+    fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
+
+        if directory.join("$NOBIN$").exists() || directory.join("$NOBIN-NOTEST$").exists() {
+            binarize = false;
+        }
 
         for path in file_list {
             let relative = path.strip_prefix(&directory).unwrap();
