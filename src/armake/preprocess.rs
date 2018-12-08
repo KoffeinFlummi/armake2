@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::clone::Clone;
 use std::io::{Read, Write, Error, ErrorKind};
 use std::fs::{File, read_dir};
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
 use std::iter::{Sum};
 
@@ -173,7 +173,7 @@ impl Macro {
                     if self.quoted {
                         let (concatted, newlines) = Token::concat(&tokens);
                         let mut tokens: Vec<Token> = Vec::new();
-                        tokens.push(Token::NewlineToken(format!("\"{}\"", concatted), newlines));
+                        tokens.push(Token::NewlineToken(format!("\"{}\"", concatted.trim()), newlines));
                         Ok(tokens)
                     } else {
                         Ok(tokens)
@@ -369,7 +369,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 
                     let mut content = String::new();
                     File::open(&file_path)?.read_to_string(&mut content)?;
-                    let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders)?;
+                    let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
 
                     info.import_stack.pop();
 
