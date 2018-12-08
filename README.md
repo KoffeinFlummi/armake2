@@ -10,6 +10,7 @@ Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust f
 - New v3 signatures
 - Signature verification
 - Seperate `preprocess` command
+- Seperate `pack` command for non-binarized PBOs instead of `build -p`
 - Configs are now rapified via the `rapify` command
 - Improved config parser errors
 - Automatic warning truncation to prevent spam
