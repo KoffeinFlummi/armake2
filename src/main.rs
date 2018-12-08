@@ -35,7 +35,7 @@ Usage:
     armake2 rapify [-v] [-f] [-w <wname>]... [-i <includefolder>]... [<source> [<target>]]
     armake2 preprocess [-v] [-f] [-w <wname>]... [-i <includefolder>]... [<source> [<target>]]
     armake2 derapify [-v] [-f] [-d <indentation>] [<source> [<target>]]
-    armake2 binarize [-v] [-f] [-w <wname>]... [-i <includefolder>]... <source> <target>
+    armake2 binarize [-v] [-f] [-w <wname>]... <source> <target>
     armake2 build [-v] [-f] [-w <wname>]... [-i <includefolder>]... [-x <excludepattern>]... [-e <headerext>]... [-k <privatekey>] [-s <signature>] <sourcefolder> [<target>]
     armake2 pack [-v] [-f] <sourcefolder> [<target>]
     armake2 inspect [-v] [<source>]
@@ -160,7 +160,7 @@ fn run_command(args: &Args) -> Result<(), Error> {
     includefolders.push(PathBuf::from("."));
 
     if args.cmd_binarize {
-        binarize::cmd_binarize(PathBuf::from(&args.arg_source), PathBuf::from(&args.arg_target), &includefolders)
+        binarize::cmd_binarize(PathBuf::from(&args.arg_source), PathBuf::from(&args.arg_target))
     } else if args.cmd_rapify {
         config::cmd_rapify(&mut get_input(&args)?, &mut get_output(&args)?, path, &includefolders)
     } else if args.cmd_derapify {

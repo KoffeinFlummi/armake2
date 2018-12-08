@@ -156,7 +156,7 @@ impl PBO {
 
                 files.insert("config.bin".to_string(), cursor);
             } else if cfg!(windows) && binarize && is_binarizable {
-                let cursor = binarize::binarize(&path, includefolders).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
+                let cursor = binarize::binarize(&path).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
 
                 files.insert(name, cursor);
             } else {
