@@ -173,7 +173,7 @@ impl Macro {
                     if self.quoted {
                         let (concatted, newlines) = Token::concat(&tokens);
                         let mut tokens: Vec<Token> = Vec::new();
-                        tokens.push(Token::NewlineToken(format!("\"{}\"", concatted.replace("\"", "\"\"")), newlines));
+                        tokens.push(Token::NewlineToken(format!("\"{}\"", concatted), newlines));
                         Ok(tokens)
                     } else {
                         Ok(tokens)
