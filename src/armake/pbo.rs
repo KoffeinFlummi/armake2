@@ -149,12 +149,12 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if binarize && name == "config.cpp" {
+            } else if binarize && vec!["cpp", "rvmat", "ext"].contains(&path.extension().unwrap().to_str().unwrap()) {
                 let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
 
                 let cursor = config.to_cursor()?;
 
-                files.insert("config.bin".to_string(), cursor);
+                files.insert(if name == "config.cpp" { "config.bin".to_string() } else { name }, cursor);
             } else if cfg!(windows) && binarize && is_binarizable {
                 let cursor = binarize::binarize(&path).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
 
