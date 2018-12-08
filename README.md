@@ -3,9 +3,9 @@ armake2
 
 Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust for maintainability and memory safety, aiming to provide the same features except for the custom P3D binarization, which was never finished.
 
-*Status:* PAA commands not implemented, some options not implemented, testing.
+**Status:** PAA commands not implemented, some options not implemented, testing.
 
-### Comparison to armake1
+## Comparison to armake1
 
 - New v3 signatures
 - Signature verification
@@ -14,51 +14,51 @@ Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust f
 - Improved config parser errors
 - Automatic warning truncation to prevent spam
 
-#### Performance
+### Performance
 
 Performance should be equal or better than `armake1` depending on modification makeup and environment. More is done in-memory, reducing disk I/O at the expense of memory usage. Especially during binarization, less copies are performed, resulting in much faster builds for asset-heavy modifications or users without SSDs.
 
-##### BWMod build benchmarks
+#### BWMod build benchmarks
 
 **armake1:**
 
 ```
-  Time (mean ± σ):     676.463 s ± 17.609 s    [User: 1.5 ms, System: 3.9 ms]
-  Range (min … max):   653.793 s … 706.619 s
+Time (mean ± σ):     676.463 s ± 17.609 s    [User: 1.5 ms, System: 3.9 ms]
+Range (min … max):   653.793 s … 706.619 s
 ```
 
 **armake2:**
 
 ```
-  Time (mean ± σ):     434.666 s ±  1.109 s    [User: 0.0 ms, System: 4.1 ms]
-  Range (min … max):   433.415 s … 435.526 s
+Time (mean ± σ):     434.666 s ±  1.109 s    [User: 0.0 ms, System: 4.1 ms]
+Range (min … max):   433.415 s … 435.526 s
 ```
 
 **Speedup:** 1.56
 
-##### ACE3 build benchmarks
+#### ACE3 build benchmarks
 
 [`da7bb856f`](https://github.com/acemod/ACE3/commit/da7bb856fb6e699d66b0ff2d0da92e65726a9305)
 
 **armake1:**
 
 ```
-  Time (mean ± σ):     110.083 s ±  2.772 s    [User: 4.9 ms, System: 16.8 ms]
-  Range (min … max):   108.270 s … 113.274 s
+Time (mean ± σ):     110.083 s ±  2.772 s    [User: 4.9 ms, System: 16.8 ms]
+Range (min … max):   108.270 s … 113.274 s
 ```
 
 **armake2:**
 
 ```
-  Time (mean ± σ):     98.190 s ±  0.452 s    [User: 0.0 ms, System: 13.6 ms]
-  Range (min … max):   97.767 s … 98.666 s
+Time (mean ± σ):     98.190 s ±  0.452 s    [User: 0.0 ms, System: 13.6 ms]
+Range (min … max):   97.767 s … 98.666 s
 ```
 
 **Speedup:** 1.12
 
 (all benchmarks performed with 4 threads on a 4 core VM on an i5-8600K)
 
-### Building
+## Building
 
 The build requires `cargo`, Rust's package manager and the OpenSSL development libraries.
 To compile and run, use:
@@ -79,7 +79,7 @@ On Windows, the easiest way to get compilation and static linking of OpenSSL to 
 - `OPENSSL_STATIC=1`
 - `OPENSSL_LIBS=libssl_static:libcrypto_static`
 
-### Usage
+## Usage
 
 ```
 armake2
