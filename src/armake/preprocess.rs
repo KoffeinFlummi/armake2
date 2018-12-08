@@ -307,6 +307,21 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
     None
 }
 
+fn canonicalize(path: PathBuf) -> PathBuf {
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                result.pop();
+            },
+            _ => {
+                result.push(component);
+            }
+        }
+    }
+    result
+}
+
 pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_paths: &Vec<PathBuf>) -> Result<PathBuf, Error> {
     if include_path.chars().nth(0).unwrap() != '\\' {
         let mut path = PathBuf::from(include_path.replace("\\", pathsep()));
@@ -319,15 +334,15 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
             path = current_dir()?.join(path);
         }
 
-        path = path.canonicalize()?;
+        let absolute = canonicalize(path);
 
-        if !path.is_file() {
+        if !absolute.is_file() {
             match origin {
                 Some(origin_path) => Err(Error::new(ErrorKind::NotFound, format!("File \"{}\" included from \"{}\" doesn't exist.", include_path, origin_path.to_str().unwrap().to_string()))),
                 None => Err(Error::new(ErrorKind::NotFound, format!("Included file \"{}\" doesn't exist.", include_path)))
             }
         } else {
-            Ok(path)
+            Ok(absolute)
         }
     } else {
         for search_path in search_paths {
