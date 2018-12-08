@@ -11,15 +11,20 @@ include_path -> String =
     "\"" path:$([^\"]*) "\"" { path.to_string() } /
     "<" path:$([^>]*) ">"   { path.to_string() }
 
-parameters -> Vec<String> = [ \t]* "(" [ \t]* p:(name ** ([ \t]* "," [ \t]*)) [ \t]* ")" {
+parameters -> Vec<String> = "(" [ \t]* p:(name ** ([ \t]* "," [ \t]*)) [ \t]* ")" {
     p
 }
 
-definition -> Definition = n:name p:parameters? [ \t]+ v:(token *) {
+definition_value -> Vec<Token> = ([ \t]+ / &("\\" newline)) v:(token *) {
+    v
+}
+
+definition -> Definition = n:name p:parameters? v:definition_value? {
     Definition {
         name: n,
         parameters: p,
-        value: v
+        value: v.unwrap_or(Vec::new()),
+        local: false
     }
 }
 
@@ -46,12 +51,13 @@ nonmacro_token -> String = s:$((!macro_proper !comment_token !concat_token ("\\\
     s.to_string()
 }
 
-string_token -> String =
-    s:$("\"" ("\"\"" / [^\r\n\"])* "\"") { String::from(s) } /
-    s:$("'" ("''" / [^\r\n'])* "'") { String::from(s) }
-
-reserved_token -> String = s:$("class" / "delete") {
-    s.to_string()
+string_token -> (String, u32) =
+    s:$("\"" ("\\\\" / ("\\" newline) / "\"\"" / [^\r\n\"])* "\"") {
+        let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
+        (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
+} / s:$("'" ("\\\\" / ("\\" newline) / "''" / [^\r\n'])* "'") {
+        let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
+        (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
 }
 
 pub macro_proper -> Macro = quoted:"#"? n:name args:arguments? {
@@ -73,24 +79,19 @@ macro_token -> Macro = original:$(macro_proper) {
 
 concat_token = "##"
 
-sl_comment -> Comment = "//" (!newline .)* &newline {
-    Comment {
-        newlines: 0
-    }
+sl_comment -> u32 = "//" (!newline .)* &newline {
+    0
 }
 
-ml_comment -> Comment = "/*" content:$((!"*/" (newline / .))*) "*/" {
-    Comment {
-        newlines: content.chars().filter(|c| c == &'\n').count() as u32
-    }
+ml_comment -> u32 = "/*" content:$((!"*/" (newline / .))*) "*/" {
+    content.chars().filter(|c| c == &'\n').count() as u32
 }
 
-comment_token -> Comment = sl_comment / ml_comment
+comment_token -> u32 = sl_comment / ml_comment
 
 token -> Token =
     c:comment_token { Token::CommentToken(c) } /
-    s:string_token { Token::RegularToken(s) } /
-    s:reserved_token { Token::RegularToken(s) } /
+    sn:string_token { Token::NewlineToken(sn.0, sn.1) } /
     concat_token { Token::ConcatToken } /
     m:macro_token { Token::MacroToken(m) } /
     nm:nonmacro_token { Token::RegularToken(nm) }
@@ -99,6 +100,7 @@ pub tokens -> Vec<Token> = t:(token*) {
     t
 }
 
+// @todo: comments after directives (same line)
 line -> Line =
     [ \t]* d:directive [ \t]* { Line::DirectiveLine(d) } /
     [ \t]* t:tokens { Line::TokenLine(t) }

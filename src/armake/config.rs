@@ -1,14 +1,15 @@
 use std::io::{Read, Seek, Write, SeekFrom, Error, ErrorKind, Cursor, BufReader, BufWriter};
 use std::path::PathBuf;
+use std::cmp::{min};
 use std::iter::{Sum};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use colored::*;
 
 use armake::io::*;
+use armake::error::*;
 use armake::preprocess::*;
 
-mod config_grammar {
+pub mod config_grammar {
     include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));
 }
 
@@ -104,7 +105,7 @@ impl ConfigArray {
                 ConfigArrayElement::ArrayElement(a) => {
                     output.write_all(&[3])?;
                     written += 1 + a.write_rapified(output)?;
-                },
+                }
             }
         }
 
@@ -291,7 +292,7 @@ impl ConfigClass {
 
                                 let mut buffer: Box<[u8]> = vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-                                class_offset += c.write_rapified(&mut cursor, class_offset).expect(&format!("Failed to rapify {}",name));
+                                class_offset += c.write_rapified(&mut cursor, class_offset).prepend_error(format!("Failed to rapify {}:",name))?;
 
                                 class_bodies.push(cursor);
                             }
@@ -335,7 +336,7 @@ impl ConfigClass {
                 let name = input.read_cstring()?;
 
                 let class_entry = ConfigClass::read_rapified(input, level + 1)
-                    .expect("Failed to read rapified class");
+                    .prepend_error(format!("Failed to read rapified class \"{}\":", name))?;
                 entries.push((name, ConfigEntry::ClassEntry(class_entry)));
             } else if entry_type == 1 {
                 let subtype: u8 = input.bytes().next().unwrap()?;
@@ -348,7 +349,7 @@ impl ConfigClass {
                 } else if subtype == 2 {
                     entries.push((name, ConfigEntry::IntEntry(input.read_i32::<LittleEndian>()?)));
                 } else {
-                    return Err(Error::new(ErrorKind::Other, "Unrecognized variable entry subtype: {}"));
+                    return Err(Error::new(ErrorKind::Other, "Unrecognized variable entry subtype: {}."));
                 }
             } else if entry_type == 2 || entry_type == 5 {
                 if entry_type == 5 {
@@ -356,7 +357,7 @@ impl ConfigClass {
                 }
 
                 let name = input.read_cstring()?;
-                let mut array = ConfigArray::read_rapified(input).expect("Failed to read rapified array");
+                let mut array = ConfigArray::read_rapified(input).prepend_error("Failed to read rapified array:")?;
                 array.is_expansion = entry_type == 5;
 
                 entries.push((name.clone(), ConfigEntry::ArrayEntry(array)));
@@ -371,7 +372,7 @@ impl ConfigClass {
 
                 entries.push((name.clone(), ConfigEntry::ClassEntry(class_entry)));
             } else {
-                return Err(Error::new(ErrorKind::Other, "Unrecognized class entry type: {}"));
+                return Err(Error::new(ErrorKind::Other, "Unrecognized class entry type: {}."));
             }
         }
 
@@ -401,7 +402,7 @@ impl Config {
 
         let buffer: Box<[u8]> = vec![0; self.root_body.rapified_length()].into_boxed_slice();
         let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-        self.root_body.write_rapified(&mut cursor, 16).expect("Failed to rapify root class");
+        self.root_body.write_rapified(&mut cursor, 16).prepend_error("Failed to rapify root class:")?;
 
         let enum_offset: u32 = 16 + cursor.get_ref().len() as u32;
         writer.write_u32::<LittleEndian>(enum_offset)?;
@@ -423,34 +424,31 @@ impl Config {
         Ok(cursor)
     }
 
-    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>) -> Result<Config, String> {
+    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<Config, Error> {
         let mut buffer = String::new();
-        input.read_to_string(&mut buffer).expect("Failed to read input file");
+        input.read_to_string(&mut buffer).prepend_error("Failed to read input file:")?;
 
-        let (preprocessed, info) = preprocess(buffer, path).expect("Failed to preprocess config");
+        let (preprocessed, info) = preprocess(buffer, path, includefolders).prepend_error("Failed to preprocess config:")?;
 
-        let result = config_grammar::config(&preprocessed);
-        match result {
-            Ok(config) => Ok(config),
-            Err(pe) => {
-                let line_origin = info.line_origins[pe.line - 1].0;
-                let file_origin = match info.line_origins[pe.line - 1].1 {
-                    Some(ref path) => format!("{}:", path.to_str().unwrap().to_string()),
-                    None => "".to_string()
-                };
+        let mut warnings: Vec<(usize, String, Option<&'static str>)> = Vec::new();
 
-                let line = preprocessed.split("\n").nth(pe.line - 1).unwrap();
+        let result = config_grammar::config(&preprocessed, &mut warnings).format_error(&info, &preprocessed);
 
-                Err(format!("line {}{}:\n\n    {}\n    {}{}\n\nunexpected token \"{}\", expected: {:?}",
-                    file_origin,
-                    line_origin,
-                    line,
-                    " ".to_string().repeat(pe.column - 1),
-                    "^".red().bold(),
-                    line.chars().nth(pe.column - 1).unwrap(),
-                    pe.expected))
+        for w in warnings {
+            let mut location = (None, None);
+
+            if !warning_suppressed(w.2) {
+                let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
+                let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
+                line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
+
+                location = (file, Some(line as u32));
             }
+
+            warning(w.1, w.2, location);
         }
+
+        result
     }
 
     pub fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<Config, Error> {
@@ -469,25 +467,18 @@ impl Config {
     }
 }
 
-pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>) -> i32 {
-    let config: Config;
-    match Config::read(input, path) {
-        Ok(cfg) => { config = cfg; },
-        Err(msg) => {
-            eprintln!("{} {}", "error:".red().bold(), msg);
-            return 1;
-        }
-    }
+pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+    let config = Config::read(input, path, includefolders).prepend_error("Failed to parse config:")?;
 
-    config.write_rapified(output).expect("Failed to write rapified config");
+    config.write_rapified(output).prepend_error("Failed to write rapified config:")?;
 
-    0
+    Ok(())
 }
 
-pub fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> i32 {
-    let config = Config::read_rapified(input).expect("Failed to read rapified config");
+pub fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), Error> {
+    let config = Config::read_rapified(input).prepend_error("Failed to read rapified config:")?;
 
-    config.write(output).expect("Failed to derapify config");
+    config.write(output).prepend_error("Failed to derapify config:")?;
 
-    0
+    Ok(())
 }

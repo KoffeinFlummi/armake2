@@ -4,11 +4,15 @@ use std::collections::{HashMap};
 use std::path::{PathBuf};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use openssl::hash::{Hasher, MessageDigest, DigestBytes};
-use linked_hash_map::LinkedHashMap;
+use openssl::hash::{Hasher, MessageDigest};
+use linked_hash_map::{LinkedHashMap};
+use regex::{Regex};
 
+use armake::error::*;
 use armake::io::*;
 use armake::config::*;
+use armake::preprocess::*;
+use armake::binarize;
 
 struct PBOHeader {
     filename: String,
@@ -118,14 +122,15 @@ impl PBO {
         })
     }
 
-    fn from_directory(directory: PathBuf, binarize: bool, exclude_patterns: Vec<String>) -> Result<PBO, Error> {
+    fn from_directory(directory: PathBuf, binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
 
         for path in file_list {
             let relative = path.strip_prefix(&directory).unwrap();
-            let name: String = relative.to_str().unwrap().replace("/", "\\");
+            let mut name: String = relative.to_str().unwrap().replace("/", "\\");
+            let is_binarizable = Regex::new(".(rtm|p3d)$").unwrap().is_match(&name);
 
             if !file_allowed(&name, &exclude_patterns) { continue; }
 
@@ -144,15 +149,25 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if name == "config.cpp" && binarize {
-                let config = Config::read(&mut file, Some(path.clone())).expect("@todo");
+            } else if binarize && name == "config.cpp" {
+                let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
 
-                let cursor = config.to_cursor().expect("failed to write cursor @todo");
+                let cursor = config.to_cursor()?;
 
                 files.insert("config.bin".to_string(), cursor);
+            } else if cfg!(windows) && binarize && is_binarizable {
+                let cursor = binarize::binarize(&path, includefolders).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
+
+                files.insert(name, cursor);
             } else {
+                if is_binarizable && !cfg!(windows) {
+                    warning("On non-Windows systems binarize.exe cannot be used; file will be copied as-is.", Some("non-windows-binarization"), (Some(&relative.to_str().unwrap()), None));
+                }
+
                 let mut buffer: Vec<u8> = Vec::new();
                 file.read_to_end(&mut buffer)?;
+
+                name = Regex::new(".p3do$").unwrap().replace_all(&name, ".p3d").to_string();
 
                 files.insert(name, Cursor::new(buffer.into_boxed_slice()));
             }
@@ -186,16 +201,16 @@ impl PBO {
 
         if let Some(prefix) = self.header_extensions.get("prefix") {
             headers.write_all(b"prefix\0")?;
-            output.write_cstring(prefix)?;
+            headers.write_cstring(prefix)?;
         }
 
         for (key, value) in self.header_extensions.iter() {
             if key == "prefix" { continue; }
 
-            output.write_cstring(key)?;
-            output.write_cstring(value)?;
+            headers.write_cstring(key)?;
+            headers.write_cstring(value)?;
         }
-        output.write_cstring("".to_string())?;
+        headers.write_cstring("".to_string())?;
 
         let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.clone(),b)).collect();
         files_sorted.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
@@ -234,41 +249,6 @@ impl PBO {
 
         Ok(())
     }
-
-    pub fn namehash(&self) -> DigestBytes {
-        let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.to_lowercase(),b)).collect();
-        files_sorted.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
-
-        for (name, _) in &files_sorted {
-            h.update(name.as_bytes()).unwrap();
-        }
-
-        h.finish().unwrap()
-    }
-
-    pub fn filehash(&self) -> DigestBytes {
-        let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
-        let mut nothing = true;
-
-        for (name, cursor) in self.files.iter() {
-            let ext = name.split(".").last().unwrap();
-
-            if ext == "paa" || ext == "jpg" || ext == "p3d" ||
-                ext == "tga" || ext == "rvmat" || ext == "lip" ||
-                ext == "ogg" || ext == "wss" || ext == "png" ||
-                ext == "rtm" || ext == "pac" || ext == "fxy" ||
-                ext == "wrp" { continue; }
-
-            h.update(cursor.get_ref()).unwrap();
-            nothing = false;
-        }
-
-        if nothing { h.update(b"nothing").unwrap(); }
-
-        h.finish().unwrap()
-    }
 }
 
 fn list_files(directory: &PathBuf) -> Result<Vec<PathBuf>, Error> {
@@ -288,8 +268,8 @@ fn list_files(directory: &PathBuf) -> Result<Vec<PathBuf>, Error> {
     Ok(files)
 }
 
-pub fn cmd_inspect<I: Read>(input: &mut I) -> i32 {
-    let pbo = PBO::read(input).expect("Failed to read PBO.");
+pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), Error> {
+    let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
     if pbo.header_extensions.len() > 0 {
         println!("Header extensions:");
@@ -308,60 +288,60 @@ pub fn cmd_inspect<I: Read>(input: &mut I) -> i32 {
         println!("{:50} {:9} {:9} {:9}", header.filename, header.packing_method, header.original_size, header.data_size);
     }
 
-    0
+    Ok(())
 }
 
-pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: String) -> i32 {
-    let pbo = PBO::read(input).expect("Failed to read PBO.");
+pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &String) -> Result<(), Error> {
+    let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
-    match pbo.files.get(&name) {
+    match pbo.files.get(name) {
         Some(cursor) => {
-            output.write_all(cursor.get_ref()).expect("Failed to write output.");
-            0
+            output.write_all(cursor.get_ref()).prepend_error("Failed to write output:")?;
         },
         None => {
-            eprintln!("not found");
-            1
+            eprintln!("not found"); // @todo
         }
     }
+
+    Ok(())
 }
 
-pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> i32 {
-    let pbo = PBO::read(input).expect("Failed to read PBO.");
+pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> {
+    let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
-    create_dir_all(&output).expect("Failed to create output folder");
+    create_dir_all(&output).prepend_error("Failed to create output folder:")?;
 
     if pbo.header_extensions.len() > 0 {
         let prefix_path = output.join(PathBuf::from("$PBOPREFIX$"));
-        let mut prefix_file = File::create(prefix_path).expect("Failed to open prefix file");
+        let mut prefix_file = File::create(prefix_path).prepend_error("Failed to create prefix file:")?;
 
         for (key, value) in pbo.header_extensions.iter() {
-            prefix_file.write_all(format!("{}={}\n", key, value).as_bytes()).expect("Failed to write prefix file");
+            prefix_file.write_all(format!("{}={}\n", key, value).as_bytes()).prepend_error("Failed to write prefix file:")?;
         }
     }
 
     for (file_name, cursor) in pbo.files.iter() {
         // @todo: windows
-        let path = output.join(PathBuf::from(file_name.replace("\\", "/")));
-        let mut file = File::create(path).expect("Failed to open output file");
-        file.write_all(cursor.get_ref()).expect("Failed to write output file");
+        let path = output.join(PathBuf::from(file_name.replace("\\", pathsep())));
+        let mut file = File::create(path).prepend_error("Failed to open output file:")?;
+        file.write_all(cursor.get_ref()).prepend_error("Failed to write output file:")?;
     }
 
-    0
+    Ok(())
 }
 
-pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, excludes: Vec<String>) -> i32 {
-    let pbo = PBO::from_directory(input, false, excludes).expect("Failed to read directory");
+pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, excludes: &Vec<String>) -> Result<(), Error> {
+    let pbo = PBO::from_directory(input, false, excludes, &Vec::new()).prepend_error("Failed to build PBO:")?;
 
-    pbo.write(output).expect("Failed to write PBO");
+    pbo.write(output).prepend_error("Failed to write PBO:")?;
 
-    0
+    Ok(())
 }
 
-pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, excludes: Vec<String>) -> i32 {
-    let pbo = PBO::from_directory(input, true, excludes).expect("Failed to read directory");
+pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, excludes: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+    let pbo = PBO::from_directory(input, true, excludes, includefolders).prepend_error("Failed to build PBO:")?;
 
-    pbo.write(output).expect("Failed to write PBO");
+    pbo.write(output).prepend_error("Failed to write PBO:")?;
 
-    0
+    Ok(())
 }

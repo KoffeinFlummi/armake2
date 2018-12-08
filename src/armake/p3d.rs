@@ -1,4 +1,4 @@
-use std::io::{Read, Error, BufReader};
+use std::io::{Read, Seek, SeekFrom, Error, BufReader};
 use std::collections::{HashMap};
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -93,7 +93,7 @@ impl Face {
 }
 
 impl LOD {
-    fn read<I: Read>(input: &mut I) -> Result<LOD, Error> {
+    fn read<I: Read + Seek>(input: &mut I, deps_only: bool) -> Result<LOD, Error> {
         let mut buffer = [0; 4];
         input.read_exact(&mut buffer)?;
         assert_eq!(&buffer, b"P3DM");
@@ -107,14 +107,22 @@ impl LOD {
 
         input.bytes().nth(3);
 
-        let mut points: Vec<Point> = Vec::with_capacity(num_points as usize);
-        for _i in 0..num_points {
-            points.push(Point::read(input)?);
-        }
+        let mut points: Vec<Point>;
+        let mut face_normals: Vec<(f32, f32, f32)>;
+        if deps_only {
+            points = Vec::with_capacity(num_points as usize);
+            for _i in 0..num_points {
+                points.push(Point::read(input)?);
+            }
 
-        let mut face_normals: Vec<(f32, f32, f32)> = Vec::with_capacity(num_face_normals as usize);
-        for _i in 0..num_face_normals {
-            face_normals.push((input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?));
+            face_normals = Vec::with_capacity(num_face_normals as usize);
+            for _i in 0..num_face_normals {
+                face_normals.push((input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?));
+            }
+        } else {
+            points = Vec::new();
+            face_normals = Vec::new();
+            input.seek(SeekFrom::Current((num_points * 16 + num_face_normals * 12) as i64))?;
         }
 
         let mut faces: Vec<Face> = Vec::with_capacity(num_faces as usize);
@@ -130,8 +138,10 @@ impl LOD {
 
             let name = input.read_cstring()?;
             let size = input.read_u32::<LittleEndian>()?;
-            let mut buffer = vec![0; size as usize].into_boxed_slice();
-            input.read_exact(&mut buffer)?;
+            //let mut buffer = vec![0; size as usize].into_boxed_slice();
+            //input.read_exact(&mut buffer)?;
+
+            input.seek(SeekFrom::Current(size as i64))?;
 
             if name == "#EndOfFile#" { break; }
             // @todo: handle others
@@ -154,7 +164,7 @@ impl LOD {
 }
 
 impl P3D {
-    pub fn read<I: Read>(input: &mut I) -> Result<P3D, Error> {
+    pub fn read<I: Read + Seek>(input: &mut I, deps_only: bool) -> Result<P3D, Error> {
         let mut reader = BufReader::new(input);
 
         let mut buffer = [0; 4];
@@ -166,7 +176,7 @@ impl P3D {
         let mut lods: Vec<LOD> = Vec::with_capacity(num_lods as usize);
 
         for _i in 0..num_lods {
-            lods.push(LOD::read(&mut reader)?);
+            lods.push(LOD::read(&mut reader, deps_only)?);
         }
 
         Ok(P3D {

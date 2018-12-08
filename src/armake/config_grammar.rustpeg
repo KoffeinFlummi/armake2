@@ -1,6 +1,8 @@
 use std::str;
 use armake::config::{Config, ConfigClass, ConfigEntry, ConfigArray, ConfigArrayElement};
 
+#![arguments(warnings: &mut Vec<(usize, String, Option<&'static str>)>)]
+
 whitespace = #quiet<[ \r\n\t]+>
 
 float -> f32 = f:$([-+]? [0-9]* "." [0-9]+) {
@@ -11,7 +13,11 @@ float -> f32 = f:$([-+]? [0-9]* "." [0-9]+) {
 }
 
 integer -> i32 = i:$([-+]? (("0x" [0-9a-fA-F]+) / [0-9]+)) {
-    i.parse().unwrap()
+    if i.contains("0x") {
+        i32::from_str_radix(&i.replace("0x", ""), 16).unwrap()
+    } else {
+        i32::from_str_radix(i, 10).unwrap()
+    }
 }
 
 doublequoted_string -> String = "\""s:$(("\"\"" / [^\"])*)"\"" {
@@ -22,12 +28,16 @@ singlequoted_string -> String = "'"s:$(("''" / [^'])*)"'" {
     s.to_string().replace("\'\'", "\'")
 }
 
-unquoted_string -> String = s:$([^;]*) {
-    s.to_string().trim().to_string()
+unquoted_string -> String = pos:#position s:$([^;}]*) {
+    let result = s.to_string().trim().to_string();
+    warnings.push((pos, format!("String value \"{}\" is not quoted properly.", result), Some("unquoted-string")));
+    result
 }
 
-unquoted_string_array -> String = s:$([^,} \t][^,}]*) {
-    s.to_string()
+unquoted_string_array -> String = pos:#position s:$([^,} \t][^,}]*) {
+    let result = s.to_string().trim().to_string();
+    warnings.push((pos, format!("String array element \"{}\" is not quoted properly.", result), Some("unquoted-string")));
+    result
 }
 
 string -> String = doublequoted_string / singlequoted_string
@@ -41,7 +51,7 @@ array_element -> ConfigArrayElement =
 
 array_elements -> Vec<ConfigArrayElement> = array_element ** (whitespace? "," whitespace?)
 
-array -> ConfigArray = "{" whitespace? elems:array_elements whitespace? "}" {
+array -> ConfigArray = "{" whitespace? elems:array_elements whitespace? ","? whitespace? "}" {
     ConfigArray {
         is_expansion: false,
         elements: elems
@@ -73,8 +83,8 @@ array_expansion_entry -> (String, ConfigEntry) = n:name whitespace? "[" whitespa
 }
 
 entry -> (String, ConfigEntry) =
-    e:(class / array_entry / array_expansion_entry / var_entry) whitespace? ";" { e } /
-    e:unquoted_string_entry whitespace? ";" { e }
+    e:(class / array_entry / array_expansion_entry / var_entry) whitespace? (";" / &"}") { e } /
+    e:unquoted_string_entry whitespace? (";" / &"}") { e }
 
 entries -> Vec<(String, ConfigEntry)> = entry ** (whitespace?)
 
