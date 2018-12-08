@@ -330,16 +330,26 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> 
     Ok(())
 }
 
-pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, excludes: &Vec<String>) -> Result<(), Error> {
-    let pbo = PBO::from_directory(input, false, excludes, &Vec::new()).prepend_error("Failed to build PBO:")?;
+pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>) -> Result<(), Error> {
+    let mut pbo = PBO::from_directory(input, false, excludes, &Vec::new()).prepend_error("Failed to build PBO:")?;
+
+    for h in headerext {
+        let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());
+        pbo.header_extensions.insert(key.to_string(), value.to_string());
+    }
 
     pbo.write(output).prepend_error("Failed to write PBO:")?;
 
     Ok(())
 }
 
-pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, excludes: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
-    let pbo = PBO::from_directory(input, true, excludes, includefolders).prepend_error("Failed to build PBO:")?;
+pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+    let mut pbo = PBO::from_directory(input, true, excludes, includefolders).prepend_error("Failed to build PBO:")?;
+
+    for h in headerext {
+        let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());
+        pbo.header_extensions.insert(key.to_string(), value.to_string());
+    }
 
     pbo.write(output).prepend_error("Failed to write PBO:")?;
 

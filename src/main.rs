@@ -168,9 +168,9 @@ fn run_command(args: &Args) -> Result<(), Error> {
     } else if args.cmd_preprocess {
         preprocess::cmd_preprocess(&mut get_input(&args)?, &mut get_output(&args)?, path, &includefolders)
     } else if args.cmd_build {
-        pbo::cmd_build(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_exclude, &includefolders)
+        pbo::cmd_build(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude, &includefolders)
     } else if args.cmd_pack {
-        pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_exclude)
+        pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude)
     } else if args.cmd_inspect {
         pbo::cmd_inspect(&mut get_input(&args)?)
     } else if args.cmd_cat {
