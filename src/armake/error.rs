@@ -170,7 +170,7 @@ pub fn print_warning_summary() -> () {
         for (name, raised) in WARNINGS_RAISED.as_ref().unwrap().iter() {
             if WARNINGS_MUTED.as_ref().unwrap().contains(name) { continue; }
 
-            let excess = raised - WARNING_MAXIMUM;
+            let excess = (*raised as i32) - (WARNING_MAXIMUM as i32);
             if excess <= 0 { continue; }
 
             if excess > 1 {
