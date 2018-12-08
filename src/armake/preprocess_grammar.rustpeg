@@ -47,15 +47,12 @@ pub arguments -> Vec<String> = [ \t]* "(" [ \t]* a:(argument ** ([ \t]* "," [ \t
     a
 }
 
-nonmacro_token -> String = s:$((!macro_proper !comment_token !concat_token ("\\\\" / ("\\" newline) / [^'\"\r\n]))+) {
+nonmacro_token -> String = s:$((!macro_proper !comment_token !concat_token ("\\\\" / ("\\" newline) / [^\"\r\n]))+) {
     s.to_string()
 }
 
 string_token -> (String, u32) =
     s:$("\"" ("\\\\" / ("\\" newline) / "\"\"" / [^\r\n\"])* "\"") {
-        let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
-        (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
-} / s:$("'" ("\\\\" / ("\\" newline) / "''" / [^\r\n'])* "'") {
         let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
         (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
 }
