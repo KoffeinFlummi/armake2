@@ -69,9 +69,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
             Some(code) => format!("binarize.exe terminated with exit code: {}", code),
             None => "binarize.exe terminated by signal.".to_string()
         };
-        let outputhint = if var("BIOUTPUT").unwrap_or("0".to_string()) == "1" {
-            "\nUse BIOUTPUT=1 to see binarize.exe's output."
-        } else { "" };
+        let outputhint = if !piped { "\nUse BIOUTPUT=1 to see binarize.exe's output." } else { "" };
 
         return Err(Error::new(ErrorKind::Other, format!("{}{}", msg, outputhint)));
     }
