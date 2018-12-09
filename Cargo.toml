@@ -1,8 +1,14 @@
 [package]
 name = "armake2"
 version = "0.1.0"
+description = "Arma 3 modding tools"
+license = "GPL-2.0-or-later"
+categories = ["command-line-utilities"]
 authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>"]
+homepage = "https://github.com/KoffeinFlummi/armake2"
+repository = "https://github.com/KoffeinFlummi/armake2"
 build = "build.rs"
+readme = "README.md"
 
 [dependencies]
 colored = "1.6"
