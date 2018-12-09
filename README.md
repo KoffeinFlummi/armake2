@@ -5,7 +5,7 @@ Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust f
 
 **Status:** PAA commands not implemented, some options not implemented, testing.
 
-## Comparison to armake1
+## Changes since armake
 
 - New v3 signatures
 - Signature verification
@@ -17,7 +17,7 @@ Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust f
 
 ### Performance
 
-Performance should be equal or better than `armake1` depending on modification makeup and environment. More is done in-memory, reducing disk I/O at the expense of memory usage. Especially during binarization, less copies are performed, resulting in much faster builds for asset-heavy modifications or users without SSDs.
+Performance should be equal or better than `armake` depending on modification makeup and environment. More is done in-memory, reducing disk I/O at the expense of memory usage. Especially during binarization, less copies are performed, resulting in much faster builds for asset-heavy modifications or users without SSDs.
 
 #### BWMod build benchmarks
 
