@@ -10,6 +10,9 @@ repository = "https://github.com/KoffeinFlummi/armake2"
 build = "build.rs"
 readme = "README.md"
 
+[lib]
+name = "armake2"
+
 [dependencies]
 colored = "1.6"
 time = "0.1"
