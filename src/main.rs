@@ -82,6 +82,7 @@ Options:
     -h --help                   Show usage information and exit.
        --version                Print the version number and exit.
 ";
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -201,7 +202,7 @@ fn main() {
     //println!("{:?}", args);
 
     if args.flag_version {
-        println!("v0.1.0");
+        println!("v{}", VERSION);
         std::process::exit(0);
     }
 
