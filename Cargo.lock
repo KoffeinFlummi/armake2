@@ -8,7 +8,7 @@ dependencies = [
 
 [[package]]
 name = "armake2"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
