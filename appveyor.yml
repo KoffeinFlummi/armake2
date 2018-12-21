@@ -1,0 +1,52 @@
+image: Visual Studio 2017
+
+environment:
+  global:
+    RUST_VERSION: stable
+
+  matrix:
+    # MinGW
+    - TARGET: i686-pc-windows-gnu
+      BITS: 32
+      MSYS2: 1
+    - TARGET: x86_64-pc-windows-gnu
+      BITS: 64
+      MSYS2: 1
+
+    # MSVC
+    - TARGET: i686-pc-windows-msvc
+      BITS: 32
+      OPENSSL_DIR: C:\OpenSSL
+      OPENSSL_LIBS: libssl_static:libcrypto_static
+      OPENSSL_STATIC: 1
+      OPENSSL_VERSION: 1_1_1a
+    - TARGET: x86_64-pc-windows-msvc
+      BITS: 64
+      OPENSSL_DIR: C:\OpenSSL
+      OPENSSL_LIBS: libssl_static:libcrypto_static
+      OPENSSL_STATIC: 1
+      OPENSSL_VERSION: 1_1_1a
+
+install:
+  # Install OpenSSL
+  - mkdir C:\OpenSSL
+  - ps: if (Test-Path env:OPENSSL_VERSION) { Start-FileDownload "http://slproweb.com/download/Win${env:BITS}OpenSSL-${env:OPENSSL_VERSION}.exe" }
+  - if defined OPENSSL_VERSION Win%BITS%OpenSSL-%OPENSSL_VERSION%.exe /SILENT /VERYSILENT /SP- /DIR="C:\OpenSSL"
+  - appveyor DownloadFile https://curl.haxx.se/ca/cacert.pem -FileName C:\OpenSSL\cacert.pem
+
+  # Install Rust
+  - if defined MSYS2 set PATH=C:\msys64\mingw%BITS%\bin;%PATH%
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs/
+  - rustup-init.exe -y --default-host %TARGET% --default-toolchain %RUST_VERSION%
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - rustc -Vv
+  - cargo -V
+
+build_script:
+  - cargo build --target %TARGET%
+
+test_script:
+  - cargo test --target %TARGET%
+
+artifacts:
+  - path: target\%TARGET%\debug\armake2.exe
