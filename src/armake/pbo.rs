@@ -328,6 +328,7 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> 
     for (file_name, cursor) in pbo.files.iter() {
         // @todo: windows
         let path = output.join(PathBuf::from(file_name.replace("\\", pathsep())));
+        create_dir_all(path.parent().unwrap()).prepend_error("Failed to create output folder:")?;
         let mut file = File::create(path).prepend_error("Failed to open output file:")?;
         file.write_all(cursor.get_ref()).prepend_error("Failed to write output file:")?;
     }
