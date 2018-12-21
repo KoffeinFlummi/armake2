@@ -7,6 +7,9 @@ extern crate linked_hash_map;
 extern crate openssl;
 extern crate regex;
 
+#[cfg(windows)]
+extern crate winreg;
+
 mod armake;
 
 pub use armake::{pbo,config,p3d,preprocess,binarize,sign,io};
