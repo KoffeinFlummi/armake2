@@ -2,6 +2,7 @@ armake2
 =======
 
 [![](https://img.shields.io/travis/KoffeinFlummi/armake2.svg?logo=travis&style=flat)](https://travis-ci.org/KoffeinFlummi/armake2)
+[![](https://img.shields.io/appveyor/ci/KoffeinFlummi/armake2.svg?logo=appveyor&style=flat)](https://ci.appveyor.com/project/KoffeinFlummi/armake2)
 [![](https://img.shields.io/crates/v/armake2.svg?logo=rust&style=flat)](https://crates.io/crates/armake2)
 
 Successor to [armake](https://github.com/KoffeinFlummi/armake) written in Rust for maintainability and memory safety, aiming to provide the same features except for the custom P3D binarization, which was never finished.
