@@ -1,5 +1,3 @@
-extern crate serde_derive;
-extern crate docopt;
 extern crate colored;
 extern crate byteorder;
 extern crate time;
