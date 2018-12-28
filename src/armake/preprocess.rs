@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
 use std::iter::{Sum};
 
-use armake::error::*;
+use crate::armake::error::*;
 
 pub mod preprocess_grammar {
     include!(concat!(env!("OUT_DIR"), "/preprocess_grammar.rs"));
@@ -366,9 +366,9 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
     let mut level = 0;
     let mut level_true = 0;
 
-    for mut line in lines {
+    for line in lines {
         match line {
-            Line::DirectiveLine(mut dir) => match dir {
+            Line::DirectiveLine(dir) => match dir {
                 Directive::IncludeDirective(path) => {
                     if level > level_true { continue; }
 
@@ -390,7 +390,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 
                     output += &result;
                 },
-                Directive::DefineDirective(mut def) => {
+                Directive::DefineDirective(def) => {
                     original_lineno += u32::sum(def.value.iter().map(|t| match t {
                         Token::NewlineToken(_s, n) => *n,
                         Token::CommentToken(n) => *n,

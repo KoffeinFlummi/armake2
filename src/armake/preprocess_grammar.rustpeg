@@ -1,5 +1,5 @@
 use std::str;
-use armake::preprocess::*;
+use crate::armake::preprocess::*;
 
 newline = "\r\n" / "\n"
 

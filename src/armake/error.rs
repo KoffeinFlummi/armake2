@@ -6,8 +6,8 @@ use std::collections::{HashMap, HashSet};
 
 use colored::*;
 
-use armake::config::*;
-use armake::preprocess::*;
+use crate::armake::config::*;
+use crate::armake::preprocess::*;
 
 const WARNING_MAXIMUM: u32 = 10;
 

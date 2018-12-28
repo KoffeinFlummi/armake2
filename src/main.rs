@@ -1,15 +1,3 @@
-extern crate serde;
-extern crate docopt;
-extern crate colored;
-extern crate byteorder;
-extern crate time;
-extern crate linked_hash_map;
-extern crate openssl;
-extern crate regex;
-
-#[cfg(windows)]
-extern crate winreg;
-
 use std::io::{Error, Read, Cursor, stdin, stdout};
 use std::path::{PathBuf};
 use std::fs::{File};
@@ -19,14 +7,13 @@ use std::iter::{FromIterator};
 use serde::Deserialize;
 use docopt::Docopt;
 
-mod armake;
-use armake::io::{Input, Output};
-use armake::error::*;
-use armake::config;
-use armake::preprocess;
-use armake::pbo;
-use armake::sign;
-use armake::binarize;
+use armake2::io::{Input, Output};
+use armake2::error::*;
+use armake2::config;
+use armake2::preprocess;
+use armake2::pbo;
+use armake2::sign;
+use armake2::binarize;
 
 const USAGE: &'static str = "
 armake2

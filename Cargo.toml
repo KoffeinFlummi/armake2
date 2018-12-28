@@ -9,6 +9,7 @@ homepage = "https://github.com/KoffeinFlummi/armake2"
 repository = "https://github.com/KoffeinFlummi/armake2"
 build = "build.rs"
 readme = "README.md"
+edition = "2018"
 
 [lib]
 name = "armake2"

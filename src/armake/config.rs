@@ -5,9 +5,9 @@ use std::iter::{Sum};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use armake::io::*;
-use armake::error::*;
-use armake::preprocess::*;
+use crate::armake::io::*;
+use crate::armake::error::*;
+use crate::armake::preprocess::*;
 
 pub mod config_grammar {
     include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));
@@ -290,7 +290,7 @@ impl ConfigClass {
                                 output.write_u32::<LittleEndian>(class_offset as u32)?;
                                 written += name.len() + 6;
 
-                                let mut buffer: Box<[u8]> = vec![0; c.rapified_length()].into_boxed_slice();
+                                let buffer: Box<[u8]> = vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
                                 class_offset += c.write_rapified(&mut cursor, class_offset).prepend_error(format!("Failed to rapify {}:",name))?;
 

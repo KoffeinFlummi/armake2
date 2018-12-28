@@ -1,5 +1,5 @@
 use std::str;
-use armake::config::{Config, ConfigClass, ConfigEntry, ConfigArray, ConfigArrayElement};
+use crate::armake::config::{Config, ConfigClass, ConfigEntry, ConfigArray, ConfigArrayElement};
 
 #![arguments(warnings: &mut Vec<(usize, String, Option<&'static str>)>)]
 

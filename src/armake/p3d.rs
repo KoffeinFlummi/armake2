@@ -3,7 +3,7 @@ use std::io::{Read, Seek, Write, Error, BufReader, BufWriter};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use linked_hash_map::LinkedHashMap;
 
-use armake::io::*;
+use crate::armake::io::*;
 
 #[derive(Debug)]
 pub struct Point {

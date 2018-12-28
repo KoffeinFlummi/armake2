@@ -9,11 +9,11 @@ use openssl::hash::{Hasher, MessageDigest};
 use linked_hash_map::{LinkedHashMap};
 use regex::{Regex};
 
-use armake::error::*;
-use armake::io::*;
-use armake::config::*;
-use armake::preprocess::*;
-use armake::binarize;
+use crate::armake::error::*;
+use crate::armake::io::*;
+use crate::armake::config::*;
+use crate::armake::preprocess::*;
+use crate::armake::binarize;
 
 struct PBOHeader {
     filename: String,
