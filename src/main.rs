@@ -1,5 +1,4 @@
-#[macro_use]
-extern crate serde_derive;
+extern crate serde;
 extern crate docopt;
 extern crate colored;
 extern crate byteorder;
@@ -17,6 +16,7 @@ use std::fs::{File};
 use std::collections::{HashSet};
 use std::iter::{FromIterator};
 
+use serde::Deserialize;
 use docopt::Docopt;
 
 mod armake;
