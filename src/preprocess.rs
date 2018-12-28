@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
 use std::iter::{Sum};
 
-use crate::armake::error::*;
+use crate::error::*;
 
 pub mod preprocess_grammar {
     include!(concat!(env!("OUT_DIR"), "/preprocess_grammar.rs"));

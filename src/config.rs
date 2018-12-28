@@ -5,9 +5,9 @@ use std::iter::{Sum};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::armake::io::*;
-use crate::armake::error::*;
-use crate::armake::preprocess::*;
+use crate::io::*;
+use crate::error::*;
+use crate::preprocess::*;
 
 pub mod config_grammar {
     include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));

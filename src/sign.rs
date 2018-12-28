@@ -7,8 +7,8 @@ use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::rsa::{Rsa};
 
-use crate::armake::io::*;
-use crate::armake::pbo::*;
+use crate::io::*;
+use crate::pbo::*;
 
 pub struct BIPrivateKey {
     name: String,

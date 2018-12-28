@@ -9,7 +9,7 @@ use winreg::RegKey;
 #[cfg(windows)]
 use winreg::enums::*;
 
-use crate::armake::error::*;
+use crate::error::*;
 
 #[cfg(windows)]
 fn find_binarize_exe() -> Result<PathBuf, Error> {

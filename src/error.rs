@@ -6,11 +6,10 @@ use std::collections::{HashMap, HashSet};
 
 use colored::*;
 
-use crate::armake::config::*;
-use crate::armake::preprocess::*;
+use crate::config::*;
+use crate::preprocess::*;
 
 const WARNING_MAXIMUM: u32 = 10;
-
 static mut WARNINGS_RAISED: Option<HashMap<String, u32>> = None;
 pub static mut WARNINGS_MUTED: Option<HashSet<String>> = None;
 
