@@ -101,54 +101,45 @@ struct Args {
     flag_type: Option<String>,
     flag_version: bool,
     arg_wname: Vec<String>,
-    arg_source: String,
-    arg_target: String,
+    arg_source: Option<String>,
+    arg_target: Option<String>,
     arg_filename: String,
     arg_sourcefolder: String,
     arg_targetfolder: String,
     arg_keyname: String,
     arg_privatekey: String,
     arg_publickey: String,
-    arg_signature: String,
+    arg_signature: Option<String>,
     arg_pbo: String,
 }
 
 fn get_input(args: &Args) -> Result<Input, Error> {
-    if args.arg_source == "" {
+    if let Some(ref source) = args.arg_source {
+        Ok(Input::File(File::open(source).prepend_error("Failed to open input file:")?))
+    } else {
         let mut buffer: Vec<u8> = Vec::new();
         stdin().read_to_end(&mut buffer).unwrap();
         Ok(Input::Cursor(Cursor::new(buffer.into_boxed_slice())))
-    } else {
-        Ok(Input::File(File::open(&args.arg_source).prepend_error("Failed to open input file:")?))
     }
 }
 
 fn get_output(args: &Args) -> Result<Output, Error> {
-    if args.arg_target == "" {
-        Ok(Output::Standard(stdout()))
+    if let Some(ref target) = args.arg_target {
+        Ok(Output::File(File::create(target).prepend_error("Failed to open output file:")?))
     } else {
-        Ok(Output::File(File::create(&args.arg_target).prepend_error("Failed to open output file:")?))
+        Ok(Output::Standard(stdout()))
     }
 }
 
 fn run_command(args: &Args) -> Result<(), Error> {
-    let path = if args.arg_source == "" {
-        None
-    } else {
-        Some(PathBuf::from(&args.arg_source))
-    };
-
-    let signature = if args.arg_signature == "" {
-        None
-    } else {
-        Some(PathBuf::from(&args.arg_signature))
-    };
+    let path = args.arg_source.as_ref().map(|p| PathBuf::from(p));
+    let signature = args.arg_signature.as_ref().map(|p| PathBuf::from(p));
 
     let mut includefolders: Vec<PathBuf> = args.flag_include.iter().map(|x| PathBuf::from(x)).collect();
     includefolders.push(PathBuf::from("."));
 
     if args.cmd_binarize {
-        binarize::cmd_binarize(PathBuf::from(&args.arg_source), PathBuf::from(&args.arg_target))
+        binarize::cmd_binarize(PathBuf::from(args.arg_source.as_ref().unwrap()), PathBuf::from(args.arg_target.as_ref().unwrap()))
     } else if args.cmd_rapify {
         config::cmd_rapify(&mut get_input(&args)?, &mut get_output(&args)?, path, &includefolders)
     } else if args.cmd_derapify {
