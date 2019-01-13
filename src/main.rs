@@ -7,6 +7,7 @@ use std::iter::{FromIterator};
 use serde::Deserialize;
 use docopt::Docopt;
 
+use armake2::*;
 use armake2::io::{Input, Output};
 use armake2::error::*;
 use armake2::config;
@@ -24,7 +25,7 @@ Usage:
     armake2 derapify [-v] [-f] [-d <indentation>] [<source> [<target>]]
     armake2 binarize [-v] [-f] [-w <wname>]... <source> <target>
     armake2 build [-v] [-f] [-w <wname>]... [-i <includefolder>]... [-x <excludepattern>]... [-e <headerext>]... [-k <privatekey>] [-s <signature>] <sourcefolder> [<target>]
-    armake2 pack [-v] [-f] <sourcefolder> [<target>]
+    armake2 pack [-v] [-f] [-k <privatekey>] [-s <signature>] <sourcefolder> [<target>]
     armake2 inspect [-v] [<source>]
     armake2 unpack [-v] [-f] <source> <targetfolder>
     armake2 cat [-v] <source> <filename> [<target>]
@@ -146,10 +147,25 @@ fn run_command(args: &Args) -> Result<(), Error> {
         config::cmd_derapify(&mut get_input(&args)?, &mut get_output(&args)?)
     } else if args.cmd_preprocess {
         preprocess::cmd_preprocess(&mut get_input(&args)?, &mut get_output(&args)?, path, &includefolders)
-    } else if args.cmd_build {
-        pbo::cmd_build(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude, &includefolders)
-    } else if args.cmd_pack {
-        pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude)
+    } else if args.cmd_build || args.cmd_pack {
+        let flag_privatekey = args.flag_key.as_ref().map(|p| PathBuf::from(p));
+        let flag_signature = args.flag_signature.as_ref().map(|p| PathBuf::from(p));
+
+        if flag_privatekey.is_some() && args.arg_target.is_none() {
+            return Err(error!("Cannot sign a pbo that is piped to stdout."));
+        }
+
+        if args.cmd_build {
+            pbo::cmd_build(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude, &includefolders)?;
+        } else {
+            pbo::cmd_pack(PathBuf::from(&args.arg_sourcefolder), &mut get_output(&args)?, &args.flag_headerext, &args.flag_exclude)?;
+        }
+
+        if let Some(pkey) = flag_privatekey {
+            sign::cmd_sign(pkey, PathBuf::from(args.arg_target.as_ref().unwrap()), flag_signature, sign::BISignVersion::V3)?;
+        }
+
+        Ok(())
     } else if args.cmd_inspect {
         pbo::cmd_inspect(&mut get_input(&args)?)
     } else if args.cmd_cat {
