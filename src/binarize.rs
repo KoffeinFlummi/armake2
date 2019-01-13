@@ -1,4 +1,4 @@
-use std::io::{Read, Write, Cursor, Error, ErrorKind};
+use std::io::{Read, Write, Cursor, Error};
 use std::fs::{File, create_dir_all, remove_dir_all};
 use std::path::{PathBuf};
 use std::env::{var, temp_dir};
@@ -9,6 +9,7 @@ use winreg::RegKey;
 #[cfg(windows)]
 use winreg::enums::*;
 
+use crate::*;
 use crate::error::*;
 
 #[cfg(windows)]
@@ -44,12 +45,12 @@ fn create_temp_directory(name: &String) -> Result<PathBuf, Error> {
 
 pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
     if !cfg!(windows) {
-        return Err(Error::new(ErrorKind::Other, "binarize.exe is only available on windows. Use rapify to binarize configs."));
+        return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
     }
 
     let binarize_exe = find_binarize_exe().prepend_error("Failed to find BI's binarize.exe:")?;
     if !binarize_exe.exists() {
-        return Err(Error::new(ErrorKind::Other, "BI's binarize.exe found in registry, but doesn't exist."));
+        return Err(error!("BI's binarize.exe found in registry, but doesn't exist."));
     }
 
     let input_dir = PathBuf::from(input.parent().unwrap());
@@ -71,7 +72,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
         };
         let outputhint = if !piped { "\nUse BIOUTPUT=1 to see binarize.exe's output." } else { "" };
 
-        return Err(Error::new(ErrorKind::Other, format!("{}{}", msg, outputhint)));
+        return Err(error!("{}{}", msg, outputhint));
     }
 
     let result_path = tempdir.join(input.strip_prefix(&input_dir).unwrap());
@@ -89,7 +90,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
 
 pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), Error> {
     if !cfg!(windows) {
-        return Err(Error::new(ErrorKind::Other, "binarize.exe is only available on windows. Use rapify to binarize configs."));
+        return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
     }
 
     let cursor = binarize(&input)?;

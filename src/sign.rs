@@ -1,4 +1,4 @@
-use std::io::{Read, Write, Error, ErrorKind, Cursor};
+use std::io::{Read, Write, Error, Cursor};
 use std::fs::{File};
 use std::path::{PathBuf};
 
@@ -317,21 +317,21 @@ impl BIPublicKey {
         signed_hash3.mod_exp(&signature.sig3, &exponent, &self.n, &mut ctx).unwrap();
 
         if real_hash1 != signed_hash1 {
-            return Err(Error::new(ErrorKind::Other, format!(
+            return Err(error!(
                 "Hash 1 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash1.to_hex_str().unwrap(), real_hash1.to_hex_str().unwrap())));
+                signed_hash1.to_hex_str().unwrap(), real_hash1.to_hex_str().unwrap()));
         }
 
         if real_hash2 != signed_hash2 {
-            return Err(Error::new(ErrorKind::Other, format!(
+            return Err(error!(
                 "Hash 2 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash2.to_hex_str().unwrap(), real_hash2.to_hex_str().unwrap())));
+                signed_hash2.to_hex_str().unwrap(), real_hash2.to_hex_str().unwrap()));
         }
 
         if real_hash3 != signed_hash3 {
-            return Err(Error::new(ErrorKind::Other, format!(
+            return Err(error!(
                 "Hash 3 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash3.to_hex_str().unwrap(), real_hash3.to_hex_str().unwrap())));
+                signed_hash3.to_hex_str().unwrap(), real_hash3.to_hex_str().unwrap()));
         }
 
         Ok(())
@@ -386,7 +386,7 @@ impl BISign {
             2 => BISignVersion::V2,
             3 => BISignVersion::V3,
             _ => {
-                return Err(Error::new(ErrorKind::Other, "Unknown BISign version."));
+                return Err(error!("Unknown BISign version."));
             }
         };
 

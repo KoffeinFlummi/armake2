@@ -1,4 +1,6 @@
-use std::io::{Error, ErrorKind};
+#![macro_use]
+
+use std::io::{Error};
 use std::cmp::{min};
 use std::path::{PathBuf};
 use std::fmt::{Display};
@@ -13,6 +15,13 @@ const WARNING_MAXIMUM: u32 = 10;
 static mut WARNINGS_RAISED: Option<HashMap<String, u32>> = None;
 pub static mut WARNINGS_MUTED: Option<HashSet<String>> = None;
 
+#[macro_export]
+macro_rules! error {
+    ($($arg:tt)*) => (
+        std::io::Error::new(std::io::ErrorKind::Other, format!($($arg)*))
+    )
+}
+
 pub trait ErrorExt<T> {
     fn prepend_error<M: AsRef<[u8]> + Display>(self, msg: M) -> Result<T, Error>;
     fn print_error(self, exit: bool) -> ();
@@ -21,7 +30,7 @@ impl<T> ErrorExt<T> for Result<T, Error> {
     fn prepend_error<M: AsRef<[u8]> + Display>(self, msg: M) -> Result<T, Error> {
         match self {
             Ok(t) => Ok(t),
-            Err(e) => Err(Error::new(ErrorKind::Other, format!("{}\n{}", msg, e)))
+            Err(e) => Err(error!("{}\n{}", msg, e))
         }
     }
 
@@ -85,14 +94,14 @@ fn format_parse_error(line: &str, file: String, line_number: usize, column_numbe
     let trimmed = line.trim_start();
     let expected_list: Vec<String> = expected.iter().cloned().map(|x| format!("{:?}", x)).collect();
 
-    Error::new(ErrorKind::Other, format!("In line {}{}:\n\n  {}\n  {}{}\n\nUnexpected token \"{}\", expected: {}",
+    error!("In line {}{}:\n\n  {}\n  {}{}\n\nUnexpected token \"{}\", expected: {}",
         file,
         line_number,
         trimmed,
         " ".to_string().repeat(column_number - 1 - (line.len() - trimmed.len())),
         "^".red().bold(),
         line.chars().map(|x| x.to_string()).nth(column_number - 1).unwrap_or("\\n".to_string()),
-        expected_list.join(", ")))
+        expected_list.join(", "))
 }
 
 pub fn warning<M: AsRef<[u8]> + Display>(msg: M, name: Option<&'static str>, location: (Option<M>,Option<u32>)) -> () {

@@ -1,6 +1,6 @@
 use std::env::current_dir;
 use std::clone::Clone;
-use std::io::{Read, Write, Error, ErrorKind};
+use std::io::{Read, Write, Error};
 use std::fs::{File, read_dir};
 use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
@@ -338,8 +338,8 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
 
         if !absolute.is_file() {
             match origin {
-                Some(origin_path) => Err(Error::new(ErrorKind::NotFound, format!("File \"{}\" included from \"{}\" doesn't exist.", include_path, origin_path.to_str().unwrap().to_string()))),
-                None => Err(Error::new(ErrorKind::NotFound, format!("Included file \"{}\" doesn't exist.", include_path)))
+                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" doesn't exist.", include_path, origin_path.to_str().unwrap().to_string())),
+                None => Err(error!("Included file \"{}\" doesn't exist.", include_path))
             }
         } else {
             Ok(absolute)
@@ -353,8 +353,8 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
         }
 
         match origin {
-            Some(origin_path) => Err(Error::new(ErrorKind::NotFound, format!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string()))),
-            None => Err(Error::new(ErrorKind::NotFound, format!("Included file \"{}\" not found.", include_path)))
+            Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
+            None => Err(error!("Included file \"{}\" not found.", include_path))
         }
     }
 }

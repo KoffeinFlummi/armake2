@@ -1,10 +1,11 @@
-use std::io::{Read, Seek, Write, SeekFrom, Error, ErrorKind, Cursor, BufReader, BufWriter};
+use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::cmp::{min};
 use std::iter::{Sum};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+use crate::*;
 use crate::io::*;
 use crate::error::*;
 use crate::preprocess::*;
@@ -128,7 +129,7 @@ impl ConfigArray {
             } else if element_type == 3 {
                 elements.push(ConfigArrayElement::ArrayElement(ConfigArray::read_rapified(input)?));
             } else {
-                return Err(Error::new(ErrorKind::Other, "Unrecognized array element type: {}"));
+                return Err(error!("Unrecognized array element type: {}", element_type));
             }
         }
 
@@ -349,7 +350,7 @@ impl ConfigClass {
                 } else if subtype == 2 {
                     entries.push((name, ConfigEntry::IntEntry(input.read_i32::<LittleEndian>()?)));
                 } else {
-                    return Err(Error::new(ErrorKind::Other, "Unrecognized variable entry subtype: {}."));
+                    return Err(error!("Unrecognized variable entry subtype: {}.", subtype));
                 }
             } else if entry_type == 2 || entry_type == 5 {
                 if entry_type == 5 {
@@ -372,7 +373,7 @@ impl ConfigClass {
 
                 entries.push((name.clone(), ConfigEntry::ClassEntry(class_entry)));
             } else {
-                return Err(Error::new(ErrorKind::Other, "Unrecognized class entry type: {}."));
+                return Err(error!("Unrecognized class entry type: {}.", entry_type));
             }
         }
 
@@ -458,7 +459,7 @@ impl Config {
         reader.read_exact(&mut buffer)?;
 
         if &buffer != b"\0raP" {
-            return Err(Error::new(ErrorKind::Other, "File doesn't seem to be a rapified config."));
+            return Err(error!("File doesn't seem to be a rapified config."));
         }
 
         Ok(Config {
