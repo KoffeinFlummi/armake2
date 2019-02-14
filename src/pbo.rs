@@ -144,7 +144,7 @@ impl PBO {
             if name == "$PBOPREFIX$" {
                 let mut content = String::new();
                 file.read_to_string(&mut content)?;
-                for l in content.split("\n") {
+                for l in content.replace("\r\n","\n").split("\n") {
                     if l.len() == 0 { break; }
 
                     let eq: Vec<String> = l.split("=").map(|s| s.to_string()).collect();
