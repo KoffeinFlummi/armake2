@@ -6,6 +6,8 @@ use std::iter::{FromIterator};
 
 use serde::Deserialize;
 use docopt::Docopt;
+#[cfg(windows)]
+use ansi_term;
 
 use armake2::*;
 use armake2::io::{Input, Output};
@@ -185,6 +187,10 @@ fn run_command(args: &Args) -> Result<(), Error> {
 }
 
 fn main() {
+    if cfg!(windows) {
+        ansi_support();
+    }
+
     let mut args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.deserialize())
                             .unwrap_or_else(|e| e.exit());
@@ -207,4 +213,18 @@ fn main() {
     run_command(&args).print_error(true);
 
     print_warning_summary();
+}
+
+#[cfg(windows)]
+fn ansi_support() {
+    // Attempt to enable ANSI support in terminal
+    // Disable colored output if failed
+    if !ansi_term::enable_ansi_support().is_ok() {
+        colored::control::set_override(false);
+    }
+}
+
+#[cfg(not(windows))]
+fn ansi_support() {
+    unreachable!();
 }
