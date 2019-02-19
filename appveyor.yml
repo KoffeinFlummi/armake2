@@ -44,9 +44,15 @@ install:
 
 build_script:
   - cargo build --target %TARGET%
+  - cargo build --target %TARGET% --release
 
 test_script:
   - cargo test --target %TARGET%
 
 artifacts:
   - path: target\%TARGET%\debug\armake2.exe
+  - path: target\%TARGET%\release\armake2.exe
+
+cache:
+  - C:\Users\appveyor\.cargo\registry
+  - target
