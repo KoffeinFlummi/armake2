@@ -11,7 +11,7 @@ use colored::*;
 use crate::config::*;
 use crate::preprocess::*;
 
-const WARNING_MAXIMUM: u32 = 10;
+pub static mut WARNING_MAXIMUM: u32 = 10;
 static mut WARNINGS_RAISED: Option<HashMap<String, u32>> = None;
 pub static mut WARNINGS_MUTED: Option<HashSet<String>> = None;
 
@@ -178,8 +178,8 @@ pub fn print_warning_summary() -> () {
         for (name, raised) in WARNINGS_RAISED.as_ref().unwrap().iter() {
             if WARNINGS_MUTED.as_ref().unwrap().contains(name) { continue; }
 
-            let excess = (*raised as i32) - (WARNING_MAXIMUM as i32);
-            if excess <= 0 { continue; }
+            if *raised <= WARNING_MAXIMUM { continue; }
+            let excess = *raised - WARNING_MAXIMUM;
 
             if excess > 1 {
                 warning(format!("{} warnings of type \"{}\" were suppressed to prevent spam. Use \"-w {}\" to disable these warnings entirely.",
