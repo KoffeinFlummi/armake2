@@ -209,7 +209,7 @@ fn main() {
     unsafe {
         WARNINGS_MUTED = Some(HashSet::from_iter(args.flag_warning.clone()));
         if args.flag_verbose {
-            WARNING_MAXIMUM = std::u32::MAX;
+            WARNINGS_MAXIMUM = std::u32::MAX;
         }
     }
 
