@@ -52,9 +52,9 @@ nonmacro_token -> String = s:$((!macro_proper !comment_token !concat_token ("\\\
 }
 
 string_token -> (String, u32) =
-    s:$("\"" ("\\\\" / ("\\" newline) / "\"\"" / [^\r\n\"])* "\"") {
-        let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
-        (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
+        s:$("\"" ("\\\\" / ("\\" newline) / "\"\"" / [^\r\n\"])* "\"") {
+    let newlines = s.chars().filter(|c| c == &'\n').count() as u32;
+    (String::from(s).replace("\r\n", "\n").replace("\\\n", ""), newlines)
 }
 
 pub macro_proper -> Macro = quoted:"#"? n:name args:arguments? {
