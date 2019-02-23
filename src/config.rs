@@ -14,10 +14,12 @@ pub mod config_grammar {
     include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));
 }
 
+#[derive(Debug)]
 pub struct Config {
     root_body: ConfigClass,
 }
 
+#[derive(Debug)]
 pub struct ConfigClass {
     parent: String,
     is_external: bool,
@@ -25,6 +27,7 @@ pub struct ConfigClass {
     entries: Option<Vec<(String, ConfigEntry)>>,
 }
 
+#[derive(Debug)]
 pub enum ConfigEntry {
     StringEntry(String),
     FloatEntry(f32),
@@ -33,11 +36,13 @@ pub enum ConfigEntry {
     ClassEntry(ConfigClass),
 }
 
+#[derive(Debug)]
 pub struct ConfigArray {
     is_expansion: bool,
     elements: Vec<ConfigArrayElement>,
 }
 
+#[derive(Debug)]
 pub enum ConfigArrayElement {
     StringElement(String),
     FloatElement(f32),
@@ -393,6 +398,14 @@ impl ConfigClass {
 impl Config {
     pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         self.root_body.write(output, 0)
+    }
+
+    pub fn to_string(&self) -> Result<String, Error> {
+        let buffer = Vec::new();
+        let mut cursor: Cursor<Vec<u8>> = Cursor::new(buffer);
+        self.write(&mut cursor)?;
+
+        Ok(String::from_utf8(cursor.into_inner()).unwrap())
     }
 
     pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<(), Error> {
