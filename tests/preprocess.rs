@@ -86,11 +86,13 @@ bar_foo\n");
     File::create(addondir.join("include.h")).unwrap().write_all(include.as_bytes()).unwrap();
     File::create(addondir.join("$PBOPREFIX$")).unwrap().write_all(prefix.as_bytes()).unwrap();
 
+    let includepath = PathBuf::from(addondir.join("include.h")).canonicalize().unwrap();
+
     let includefolders = vec![PathBuf::from(includedir.path())];
     let (output, info) = preprocess(input, Some(PathBuf::from("myfile")), &includefolders).unwrap();
 
     assert_eq!("bar_foo\n\nfoo_bar", output.trim());
-    assert_eq!((2, Some(PathBuf::from(addondir.join("include.h")))), info.line_origins[0]);
+    assert_eq!((2, Some(includepath)), info.line_origins[0]);
     assert_eq!((2, Some(PathBuf::from("myfile"))), info.line_origins[2]);
 }
 
