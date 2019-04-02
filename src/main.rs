@@ -75,7 +75,7 @@ Options:
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Deserialize)]
-struct Args {
+pub struct Args {
     cmd_rapify: bool,
     cmd_preprocess: bool,
     cmd_derapify: bool,
@@ -186,15 +186,11 @@ fn run_command(args: &Args) -> Result<(), Error> {
     }
 }
 
-fn main() {
+pub fn run(args: &Args) {
     if cfg!(windows) {
         ansi_support();
     }
-
-    let mut args: Args = Docopt::new(USAGE)
-                            .and_then(|d| d.deserialize())
-                            .unwrap_or_else(|e| e.exit());
-
+    
     if args.flag_indent.is_none() {
         args.flag_indent = Some("    ".to_string());
     }
@@ -213,6 +209,13 @@ fn main() {
     run_command(&args).print_error(true);
 
     print_warning_summary();
+}
+
+fn main() {
+    let mut args: Args = Docopt::new(USAGE)
+                            .and_then(|d| d.deserialize())
+                            .unwrap_or_else(|e| e.exit());
+    run(&args);
 }
 
 #[cfg(windows)]
