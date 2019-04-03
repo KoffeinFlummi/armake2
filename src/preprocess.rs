@@ -359,7 +359,7 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
     }
 }
 
-fn line_muncher(line:Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
     let mut output = String::from("");
     match line {
         Line::DirectiveLine(dir) => match dir {
@@ -397,19 +397,19 @@ fn line_muncher(line:Line, original_lineno: &mut u32, level: &mut u32, level_tru
                     // @todo: warn about redefine
                 }
 
-                definition_map.insert(def.name.clone(), def);
+                definition_map.insert(def.name.clone(), def.clone());
             }
             Directive::UndefDirective(name) => {
                 if *level > *level_true { return Ok(output.to_string()); }
 
-                definition_map.remove(&name);
+                definition_map.remove(name);
             }
             Directive::IfDefDirective(name) => {
-                *level_true += if *level_true == *level && definition_map.contains_key(&name) { 1 } else { 0 };
+                *level_true += if *level_true == *level && definition_map.contains_key(name) { 1 } else { 0 };
                 *level += 1;
             }
             Directive::IfNDefDirective(name) => {
-                *level_true += if *level_true == *level && !definition_map.contains_key(&name) { 1 } else { 0 };
+                *level_true += if *level_true == *level && !definition_map.contains_key(name) { 1 } else { 0 };
                 *level += 1;
             }
             Directive::ElseDirective => {
@@ -455,17 +455,30 @@ fn line_muncher(line:Line, original_lineno: &mut u32, level: &mut u32, level_tru
 struct PreprocessHolder<'a> {
     input: String,
     origin: Option<PathBuf>,
-    definition_map: HashMap<String, Definition>,
-    info: PreprocessInfo,
+    definition_map: &'a mut HashMap<String, Definition>,
+    info: &'a mut PreprocessInfo,
     includefolders: &'a Vec<PathBuf>,
-    line: Iterator<Item = Line>,
+    original_lineno: &'a mut u32,
+    level: &'a mut u32,
+    level_true: &'a mut u32,
+    line: std::slice::Iter<'a, Line>,
 }
 
 impl<'a> Iterator for PreprocessHolder<'a> {
-    type Item = HashMap<String, Definition>;
+    type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
-        let line = self.line.next(); // Will this actually change self.line() for the next step?
-        None
+        let line = self.line.next().unwrap(); // Will this actually change self.line() for the next step?
+        Some(line_muncher(
+            line,
+            &mut self.original_lineno,
+            &mut self.level,
+            &mut self.level_true,
+            self.input.clone(),
+            self.origin.clone(),
+            &mut self.definition_map,
+            &mut self.info,
+            self.includefolders
+        ).unwrap())
     }
 }
 
@@ -478,16 +491,27 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
     let mut level = 0;
     let mut level_true = 0;
 
+    PreprocessHolder{
+        line: lines.iter(),
+        original_lineno: &mut original_lineno,
+        level: &mut level,
+        level_true: &mut level_true,
+        input: input.clone(),
+        origin: origin.clone(),
+        definition_map, // Surely this needs to be mutable?
+        info,
+        includefolders
+    };
     // lines is already an iterator - easy
     for line in lines {
         output += &line_muncher(
-            line,
+            &line,
             &mut original_lineno,
             &mut level,
             &mut level_true,
             input.clone(),
             origin.clone(),
-            definition_map,
+            definition_map, // Surely this needs to be mutable?
             info,
             includefolders
         ).unwrap();
