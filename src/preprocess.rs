@@ -453,15 +453,15 @@ fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_t
 }
 
 pub struct PreprocessHolder<'a> {
-    input: String,
-    origin: Option<PathBuf>,
-    definition_map: &'a mut HashMap<String, Definition>,
-    info: &'a mut PreprocessInfo,
-    includefolders: &'a Vec<PathBuf>,
-    original_lineno: &'a mut u32,
-    level: &'a mut u32,
-    level_true: &'a mut u32,
-    line: std::slice::Iter<'a, Line>,
+    pub input: String,
+    pub origin: Option<PathBuf>,
+    pub definition_map: &'a mut HashMap<String, Definition>,
+    pub info: &'a mut PreprocessInfo,
+    pub includefolders: &'a Vec<PathBuf>,
+    pub original_lineno: &'a mut u32,
+    pub level: &'a mut u32,
+    pub level_true: &'a mut u32,
+    pub line: std::slice::Iter<'a, Line>,
 }
 
 impl<'a> Iterator for PreprocessHolder<'a> {
