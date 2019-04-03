@@ -359,6 +359,99 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
     }
 }
 
+fn line_muncher(line:Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+    let mut output = String::from("");
+    match line {
+        Line::DirectiveLine(dir) => match dir {
+            Directive::IncludeDirective(path) => {
+                if *level > *level_true { return Ok(output.to_string()); }
+
+                //let import_tree = &mut info.import_tree;
+                //let includer = import_tree.get(&path);
+                //if let Some(path) = includer {
+                //    // @todo: complain
+                //}
+
+                let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
+
+                info.import_stack.push(file_path.clone());
+
+                let mut content = String::new();
+                File::open(&file_path)?.read_to_string(&mut content)?;
+                let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
+
+                info.import_stack.pop();
+
+                output += &result;
+            },
+            Directive::DefineDirective(def) => {
+                *original_lineno += u32::sum(def.value.iter().map(|t| match t {
+                    Token::NewlineToken(_s, n) => *n,
+                    Token::CommentToken(n) => *n,
+                    _ => 0
+                }));
+
+                if *level > *level_true { return Ok(output.to_string()); }
+
+                if definition_map.remove(&def.name).is_some() {
+                    // @todo: warn about redefine
+                }
+
+                definition_map.insert(def.name.clone(), def);
+            }
+            Directive::UndefDirective(name) => {
+                if *level > *level_true { return Ok(output.to_string()); }
+
+                definition_map.remove(&name);
+            }
+            Directive::IfDefDirective(name) => {
+                *level_true += if *level_true == *level && definition_map.contains_key(&name) { 1 } else { 0 };
+                *level += 1;
+            }
+            Directive::IfNDefDirective(name) => {
+                *level_true += if *level_true == *level && !definition_map.contains_key(&name) { 1 } else { 0 };
+                *level += 1;
+            }
+            Directive::ElseDirective => {
+                if *level_true + 1 == *level {
+                    *level_true = *level;
+                } else if *level_true == *level {
+                    *level_true -= 1;
+                }
+            }
+            Directive::EndIfDirective => {
+                assert!(*level > 0);
+                *level -= 1;
+                if *level_true > *level {
+                    *level_true -= 1;
+                }
+            }
+        },
+        Line::TokenLine(tokens) => {
+            let stack: Vec<Definition> = Vec::new();
+            let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:")?;
+
+            let (mut result, newlines) = Token::concat(&resolved);
+            result = result.replace("\r\n", "\n").replace("\\\n", "");
+            *original_lineno += newlines;
+
+            if *level > *level_true { return Ok(output.to_string()); }
+
+            output += &result;
+            output += "\n";
+
+            info.line_origins.push((*original_lineno, origin.clone()));
+        }
+    }
+    *original_lineno += 1;
+
+    if *level > 0 {
+        // @todo: complain
+    }
+
+    Ok(output.to_string())
+}
+
 struct PreprocessHolder<'a> {
     input: String,
     origin: Option<PathBuf>,
@@ -376,98 +469,6 @@ impl<'a> Iterator for PreprocessHolder<'a> {
     }
 }
 
-fn line_muncher(line:Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
-    let mut output = String::from("");
-        match line {
-            Line::DirectiveLine(dir) => match dir {
-                Directive::IncludeDirective(path) => {
-                    if *level > *level_true { return Ok(output.to_string()); }
-
-                    //let import_tree = &mut info.import_tree;
-                    //let includer = import_tree.get(&path);
-                    //if let Some(path) = includer {
-                    //    // @todo: complain
-                    //}
-
-                    let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
-
-                    info.import_stack.push(file_path.clone());
-
-                    let mut content = String::new();
-                    File::open(&file_path)?.read_to_string(&mut content)?;
-                    let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
-
-                    info.import_stack.pop();
-
-                    output += &result;
-                },
-                Directive::DefineDirective(def) => {
-                    *original_lineno += u32::sum(def.value.iter().map(|t| match t {
-                        Token::NewlineToken(_s, n) => *n,
-                        Token::CommentToken(n) => *n,
-                        _ => 0
-                    }));
-
-                    if *level > *level_true { return Ok(output.to_string()); }
-
-                    if definition_map.remove(&def.name).is_some() {
-                        // @todo: warn about redefine
-                    }
-
-                    definition_map.insert(def.name.clone(), def);
-                }
-                Directive::UndefDirective(name) => {
-                    if *level > *level_true { return Ok(output.to_string()); }
-
-                    definition_map.remove(&name);
-                }
-                Directive::IfDefDirective(name) => {
-                    *level_true += if *level_true == *level && definition_map.contains_key(&name) { 1 } else { 0 };
-                    *level += 1;
-                }
-                Directive::IfNDefDirective(name) => {
-                    *level_true += if *level_true == *level && !definition_map.contains_key(&name) { 1 } else { 0 };
-                    *level += 1;
-                }
-                Directive::ElseDirective => {
-                    if *level_true + 1 == *level {
-                        *level_true = *level;
-                    } else if *level_true == *level {
-                        *level_true -= 1;
-                    }
-                }
-                Directive::EndIfDirective => {
-                    assert!(*level > 0);
-                    *level -= 1;
-                    if *level_true > *level {
-                        *level_true -= 1;
-                    }
-                }
-            },
-            Line::TokenLine(tokens) => {
-                let stack: Vec<Definition> = Vec::new();
-                let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:")?;
-
-                let (mut result, newlines) = Token::concat(&resolved);
-                result = result.replace("\r\n", "\n").replace("\\\n", "");
-                *original_lineno += newlines;
-
-                if *level > *level_true { return Ok(output.to_string()); }
-
-                output += &result;
-                output += "\n";
-
-                info.line_origins.push((*original_lineno, origin.clone()));
-            }
-        }
-        *original_lineno += 1;
-
-        if *level > 0 {
-            // @todo: complain
-        }
-
-        Ok(output.to_string())
-}
 
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
     let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
