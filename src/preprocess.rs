@@ -359,7 +359,7 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
     }
 }
 
-fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
     let mut output = String::from("");
     match line {
         Line::DirectiveLine(dir) => match dir {
@@ -453,7 +453,6 @@ fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_t
 }
 
 pub struct PreprocessHolder<'a> {
-    pub input: String,
     pub origin: Option<PathBuf>,
     pub definition_map: &'a mut HashMap<String, Definition>,
     pub info: &'a mut PreprocessInfo,
@@ -475,7 +474,6 @@ impl<'a> Iterator for PreprocessHolder<'a> {
                     &mut self.original_lineno,
                     &mut self.level,
                     &mut self.level_true,
-                    self.input.clone(),
                     self.origin.clone(),
                     &mut self.definition_map,
                     &mut self.info,
@@ -502,7 +500,6 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
         original_lineno: &mut original_lineno,
         level: &mut level,
         level_true: &mut level_true,
-        input: input.clone(),
         origin: origin.clone(),
         definition_map, // Surely this needs to be mutable?
         info,
