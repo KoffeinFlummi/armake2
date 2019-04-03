@@ -452,7 +452,7 @@ fn line_muncher(line: &Line, original_lineno: &mut u32, level: &mut u32, level_t
     Ok(output.to_string())
 }
 
-struct PreprocessHolder<'a> {
+pub struct PreprocessHolder<'a> {
     input: String,
     origin: Option<PathBuf>,
     definition_map: &'a mut HashMap<String, Definition>,
@@ -467,18 +467,24 @@ struct PreprocessHolder<'a> {
 impl<'a> Iterator for PreprocessHolder<'a> {
     type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
-        let line = self.line.next().unwrap(); // Will this actually change self.line() for the next step?
-        Some(line_muncher(
-            line,
-            &mut self.original_lineno,
-            &mut self.level,
-            &mut self.level_true,
-            self.input.clone(),
-            self.origin.clone(),
-            &mut self.definition_map,
-            &mut self.info,
-            self.includefolders
-        ).unwrap())
+        let line = self.line.next(); // Will this actually change self.line() for the next step?
+        match line {
+            Some(x) => {
+                Some(line_muncher(
+                    x,
+                    &mut self.original_lineno,
+                    &mut self.level,
+                    &mut self.level_true,
+                    self.input.clone(),
+                    self.origin.clone(),
+                    &mut self.definition_map,
+                    &mut self.info,
+                    self.includefolders
+                ).unwrap())
+            }
+            None => None
+        }
+
     }
 }
 
@@ -491,7 +497,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
     let mut level = 0;
     let mut level_true = 0;
 
-    PreprocessHolder{
+    let pp = PreprocessHolder{
         line: lines.iter(),
         original_lineno: &mut original_lineno,
         level: &mut level,
@@ -502,27 +508,9 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
         info,
         includefolders
     };
-    // lines is already an iterator - easy
-    for line in lines {
-        output += &line_muncher(
-            &line,
-            &mut original_lineno,
-            &mut level,
-            &mut level_true,
-            input.clone(),
-            origin.clone(),
-            definition_map, // Surely this needs to be mutable?
-            info,
-            includefolders
-        ).unwrap();
 
-        // this needs to be a function f(line,state)
-        //
-        // iterator has function next(&mut self)
-        //
-        // what I want is to return the definition_map for each original line
-        //
-        // iterator can mutate internal result (but def_map will probably be more up to date)
+    for line in pp {
+        output += &line;
     }
 
     Ok(output)
