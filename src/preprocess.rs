@@ -359,18 +359,32 @@ pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search
     }
 }
 
-fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
-    let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
-    let mut output = String::from("");
-    let mut original_lineno = 1;
-    let mut level = 0;
-    let mut level_true = 0;
+struct PreprocessHolder<'a> {
+    input: String,
+    origin: Option<PathBuf>,
+    definition_map: HashMap<String, Definition>,
+    info: PreprocessInfo,
+    includefolders: &'a Vec<PathBuf>,
+    line: Iterator<Item = Line>,
+}
 
-    for line in lines {
+impl<'a> Iterator for PreprocessHolder<'a> {
+    type Item = HashMap<String, Definition>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let line = self.line.next(); // Will this actually change self.line() for the next step?
+        None
+    }
+}
+
+fn line_muncher(line:Line, refoutput: &mut String, reforiginal_lineno: &mut u32, reflevel: &mut u32, reflevel_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+        let level = *reflevel;
+        let level_true = *reflevel_true;
+        let original_lineno = *reforiginal_lineno;
+        let output = *refoutput;
         match line {
             Line::DirectiveLine(dir) => match dir {
                 Directive::IncludeDirective(path) => {
-                    if level > level_true { continue; }
+                    if level > level_true { return Ok(output); }
 
                     //let import_tree = &mut info.import_tree;
                     //let includer = import_tree.get(&path);
@@ -397,7 +411,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                         _ => 0
                     }));
 
-                    if level > level_true { continue; }
+                    if level > level_true { return Ok(output); }
 
                     if definition_map.remove(&def.name).is_some() {
                         // @todo: warn about redefine
@@ -406,7 +420,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                     definition_map.insert(def.name.clone(), def);
                 }
                 Directive::UndefDirective(name) => {
-                    if level > level_true { continue; }
+                    if level > level_true { return Ok(output); }
 
                     definition_map.remove(&name);
                 }
@@ -441,7 +455,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                 result = result.replace("\r\n", "\n").replace("\\\n", "");
                 original_lineno += newlines;
 
-                if level > level_true { continue; }
+                if level > level_true { return Ok(output); }
 
                 output += &result;
                 output += "\n";
@@ -454,6 +468,27 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
         if level > 0 {
             // @todo: complain
         }
+
+        Ok(output)
+}
+
+fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+    let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
+    let mut output = String::from("");
+    let mut original_lineno = 1;
+    let mut level = 0;
+    let mut level_true = 0;
+
+    // lines is already an iterator - easy
+    for line in lines {
+        output += &line_muncher(line, &mut output, &mut original_lineno, &mut level, &mut level_true, input, origin, definition_map, info, includefolders).unwrap()
+        // this needs to be a function f(line,state)
+        //
+        // iterator has function next(&mut self)
+        //
+        // what I want is to return the definition_map for each original line
+        //
+        // iterator can mutate internal result (but def_map will probably be more up to date)
     }
 
     Ok(output)
