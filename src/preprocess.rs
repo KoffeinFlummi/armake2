@@ -5,6 +5,8 @@ use std::fs::{File, read_dir};
 use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
 use std::iter::{Sum};
+use std::rc::Rc;
+use std::cell::{RefCell,RefMut};
 
 use crate::error::*;
 
@@ -376,15 +378,11 @@ impl<'a> Iterator for PreprocessHolder<'a> {
     }
 }
 
-fn line_muncher(line:Line, refoutput: &mut String, reforiginal_lineno: &mut u32, reflevel: &mut u32, reflevel_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
-        let level = *reflevel;
-        let level_true = *reflevel_true;
-        let original_lineno = *reforiginal_lineno;
-        let output = *refoutput;
+fn line_muncher(line:Line, mut output: RefMut<String>, original_lineno: &mut u32, level: &mut u32, level_true: &mut u32, input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
         match line {
             Line::DirectiveLine(dir) => match dir {
                 Directive::IncludeDirective(path) => {
-                    if level > level_true { return Ok(output); }
+                    if *level > *level_true { return Ok(output.to_string()); }
 
                     //let import_tree = &mut info.import_tree;
                     //let includer = import_tree.get(&path);
@@ -402,16 +400,16 @@ fn line_muncher(line:Line, refoutput: &mut String, reforiginal_lineno: &mut u32,
 
                     info.import_stack.pop();
 
-                    output += &result;
+                    *output += &result;
                 },
                 Directive::DefineDirective(def) => {
-                    original_lineno += u32::sum(def.value.iter().map(|t| match t {
+                    *original_lineno += u32::sum(def.value.iter().map(|t| match t {
                         Token::NewlineToken(_s, n) => *n,
                         Token::CommentToken(n) => *n,
                         _ => 0
                     }));
 
-                    if level > level_true { return Ok(output); }
+                    if *level > *level_true { return Ok(output.to_string()); }
 
                     if definition_map.remove(&def.name).is_some() {
                         // @todo: warn about redefine
@@ -420,30 +418,30 @@ fn line_muncher(line:Line, refoutput: &mut String, reforiginal_lineno: &mut u32,
                     definition_map.insert(def.name.clone(), def);
                 }
                 Directive::UndefDirective(name) => {
-                    if level > level_true { return Ok(output); }
+                    if *level > *level_true { return Ok(output.to_string()); }
 
                     definition_map.remove(&name);
                 }
                 Directive::IfDefDirective(name) => {
-                    level_true += if level_true == level && definition_map.contains_key(&name) { 1 } else { 0 };
-                    level += 1;
+                    *level_true += if *level_true == *level && definition_map.contains_key(&name) { 1 } else { 0 };
+                    *level += 1;
                 }
                 Directive::IfNDefDirective(name) => {
-                    level_true += if level_true == level && !definition_map.contains_key(&name) { 1 } else { 0 };
-                    level += 1;
+                    *level_true += if *level_true == *level && !definition_map.contains_key(&name) { 1 } else { 0 };
+                    *level += 1;
                 }
                 Directive::ElseDirective => {
-                    if level_true + 1 == level {
-                        level_true = level;
-                    } else if level_true == level {
-                        level_true -= 1;
+                    if *level_true + 1 == *level {
+                        *level_true = *level;
+                    } else if *level_true == *level {
+                        *level_true -= 1;
                     }
                 }
                 Directive::EndIfDirective => {
-                    assert!(level > 0);
-                    level -= 1;
-                    if level_true > level {
-                        level_true -= 1;
+                    assert!(*level > 0);
+                    *level -= 1;
+                    if *level_true > *level {
+                        *level_true -= 1;
                     }
                 }
             },
@@ -453,35 +451,51 @@ fn line_muncher(line:Line, refoutput: &mut String, reforiginal_lineno: &mut u32,
 
                 let (mut result, newlines) = Token::concat(&resolved);
                 result = result.replace("\r\n", "\n").replace("\\\n", "");
-                original_lineno += newlines;
+                *original_lineno += newlines;
 
-                if level > level_true { return Ok(output); }
+                if *level > *level_true { return Ok(output.to_string()); }
 
-                output += &result;
-                output += "\n";
+                *output += &result;
+                *output += "\n";
 
-                info.line_origins.push((original_lineno, origin.clone()));
+                info.line_origins.push((*original_lineno, origin.clone()));
             }
         }
-        original_lineno += 1;
+        *original_lineno += 1;
 
-        if level > 0 {
+        if *level > 0 {
             // @todo: complain
         }
 
-        Ok(output)
+        Ok(output.to_string())
 }
 
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
     let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
-    let mut output = String::from("");
+    let output = Rc::new(RefCell::new(String::from("")));
+
     let mut original_lineno = 1;
     let mut level = 0;
     let mut level_true = 0;
 
     // lines is already an iterator - easy
     for line in lines {
-        output += &line_muncher(line, &mut output, &mut original_lineno, &mut level, &mut level_true, input, origin, definition_map, info, includefolders).unwrap()
+        &line_muncher(
+            line,
+            output.borrow_mut(),
+            &mut original_lineno,
+            &mut level,
+            &mut level_true,
+            input.clone(),
+            origin.clone(),
+            definition_map,
+            info,
+            includefolders
+        ).unwrap();
+        // println!("{}",result);
+        // {
+        //     *output.borrow_mut() += result;
+        // }
         // this needs to be a function f(line,state)
         //
         // iterator has function next(&mut self)
@@ -491,7 +505,8 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
         // iterator can mutate internal result (but def_map will probably be more up to date)
     }
 
-    Ok(output)
+    let x = output.borrow().to_string();
+    Ok(x)
 }
 
 pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(String, PreprocessInfo), Error> {
