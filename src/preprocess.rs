@@ -466,11 +466,10 @@ pub struct PreprocessHolder<'a> {
 impl<'a> Iterator for PreprocessHolder<'a> {
     type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
-        let line = self.line.next(); // Will this actually change self.line() for the next step?
-        match line {
-            Some(x) => {
+        match self.line.next() {
+            Some(line) => {
                 Some(line_muncher(
-                    x,
+                    line,
                     &mut self.original_lineno,
                     &mut self.level,
                     &mut self.level_true,
