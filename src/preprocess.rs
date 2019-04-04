@@ -484,23 +484,17 @@ impl<'a> Iterator for PreprocessHolder<'a> {
 
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
     let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
-    let mut output = String::from("");
 
-    let pp = PreprocessHolder{
+    let output = PreprocessHolder{
         line: lines.iter(),
         original_lineno: 1,
         level: 0,
         level_true: 0,
         origin: origin.clone(),
-        definition_map, // Surely this needs to be mutable?
+        definition_map,
         info,
         includefolders
-    };
-
-    for line in pp {
-        output += &line;
-    }
-
+    }.fold("".to_string(), |acc, x| acc + &x);
     Ok(output)
 }
 
