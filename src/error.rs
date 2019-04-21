@@ -60,7 +60,7 @@ impl<T> PreprocessParseErrorExt<T> for Result<T, preprocess_grammar::ParseError>
                     None => "".to_string()
                 };
 
-                let line = input.split("\n").nth(pe.line - 1).unwrap_or("");
+                let line = input.replace("\r\n","\n").split("\n").nth(pe.line - 1).unwrap_or("");
 
                 Err(format_parse_error(line, file_origin, line_origin, pe.column, pe.expected))
             }
@@ -82,7 +82,7 @@ impl<T> ConfigParseErrorExt<T> for Result<T, config_grammar::ParseError> {
                     None => "".to_string()
                 };
 
-                let line = input.split("\n").nth(pe.line - 1).unwrap_or("");
+                let line = input.replace("\r\n","\n").split("\n").nth(pe.line - 1).unwrap_or("");
 
                 Err(format_parse_error(line, file_origin, line_origin, pe.column, pe.expected))
             }
