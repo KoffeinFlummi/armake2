@@ -11,13 +11,13 @@ environment:
       OPENSSL_DIR: C:\OpenSSL
       OPENSSL_LIBS: libssl_static:libcrypto_static
       OPENSSL_STATIC: 1
-      OPENSSL_VERSION: 1_1_1a
+      OPENSSL_VERSION: 1_1_1b
     - TARGET: x86_64-pc-windows-msvc
       BITS: 64
       OPENSSL_DIR: C:\OpenSSL
       OPENSSL_LIBS: libssl_static:libcrypto_static
       OPENSSL_STATIC: 1
-      OPENSSL_VERSION: 1_1_1a
+      OPENSSL_VERSION: 1_1_1b
 
     # MinGW
     - TARGET: i686-pc-windows-gnu
