@@ -29,13 +29,13 @@ definition -> Definition = n:name p:parameters? v:definition_value? {
 }
 
 directive -> Directive =
-    "#" [ \t]* "include" [ \t]+ path:include_path { Directive::IncludeDirective(path) } /
+    "#" [ \t]* "include" [ \t]+ path:include_path [ \t]* comment_token? { Directive::IncludeDirective(path) } /
     "#" [ \t]* "define" [ \t]+ d:definition { Directive::DefineDirective(d) } /
-    "#" [ \t]* "undef" [ \t]+ n:name { Directive::UndefDirective(n) } /
-    "#" [ \t]* "ifdef" [ \t]+ n:name { Directive::IfDefDirective(n) } /
-    "#" [ \t]* "ifndef" [ \t]+ n:name { Directive::IfNDefDirective(n) } /
-    "#" [ \t]* "else" { Directive::ElseDirective } /
-    "#" [ \t]* "endif" { Directive::EndIfDirective }
+    "#" [ \t]* "undef" [ \t]+ n:name [ \t]* comment_token? { Directive::UndefDirective(n) } /
+    "#" [ \t]* "ifdef" [ \t]+ n:name [ \t]* comment_token? { Directive::IfDefDirective(n) } /
+    "#" [ \t]* "ifndef" [ \t]+ n:name [ \t]* comment_token? { Directive::IfNDefDirective(n) } /
+    "#" [ \t]* "else" [ \t]* comment_token? { Directive::ElseDirective } /
+    "#" [ \t]* "endif" [ \t]* comment_token? { Directive::EndIfDirective }
 
 arg_rec = "(" (arg_rec / "\\\\" / ("\\" newline) / [^\r\n)])* ")"
 
