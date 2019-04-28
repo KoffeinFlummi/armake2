@@ -459,7 +459,11 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
     Ok(output)
 }
 
-pub fn preprocess(input: String, origin: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(String, PreprocessInfo), Error> {
+pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(String, PreprocessInfo), Error> {
+    if input[..3].as_bytes() == &[0xef,0xbb,0xbf] {
+        input = input[3..].to_string();
+    }
+
     let mut info = PreprocessInfo {
         line_origins: Vec::new(),
         import_stack: Vec::new()

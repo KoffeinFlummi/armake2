@@ -76,8 +76,8 @@ impl<T> ConfigParseErrorExt<T> for Result<T, config_grammar::ParseError> {
         match self {
             Ok(t) => Ok(t),
             Err(pe) => {
-                let line_origin = info.line_origins[min(pe.line - 1, info.line_origins.len()) - 1].0 as usize + 1;
-                let file_origin = match info.line_origins[min(pe.line - 1, info.line_origins.len()) - 1].1 {
+                let line_origin = info.line_origins[min(pe.line, info.line_origins.len()) - 1].0 as usize;
+                let file_origin = match info.line_origins[min(pe.line, info.line_origins.len()) - 1].1 {
                     Some(ref path) => format!("{}:", path.to_str().unwrap().to_string()),
                     None => "".to_string()
                 };

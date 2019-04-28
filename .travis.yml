@@ -1,8 +1,15 @@
 language: rust
-
-cache: cargo
+script:
+  - cargo build --verbose
+  - cargo test --verbose
+  - cargo bench
 
 matrix:
   include:
     - os: linux
     - os: osx
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
