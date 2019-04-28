@@ -78,7 +78,9 @@ To build a release, use:
 cargo build --release
 ```
 
-On Windows, the easiest way to get compilation and static linking of OpenSSL to work is to download [precompiled OpenSSL binaries](http://slproweb.com/products/Win32OpenSSL.html) (non-light, 64bit) and set the following environment variables:
+In order to build, you'll need to have OpenSSL installed on your system.<br>
+On **Linux**, the easiest way is to install OpenSSL via your system's package manager (if it is not installed already). Make sure you also have the development packages of openssl installed. For example, `libssl-dev` on Ubuntu or `openssl-devel` on Fedora.<br>
+On **Windows**, the easiest way to get compilation and static linking of OpenSSL to work is to download [precompiled OpenSSL binaries](http://slproweb.com/products/Win32OpenSSL.html) (non-light, 64bit) and set the following environment variables:
 
 - `OPENSSL_DIR=C:\OpenSSL-WIN64`
 - `OPENSSL_STATIC=1`
