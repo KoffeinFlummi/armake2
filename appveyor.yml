@@ -7,17 +7,13 @@ environment:
   matrix:
     # MSVC
     - TARGET: i686-pc-windows-msvc
-      BITS: 32
-      OPENSSL_DIR: C:\OpenSSL
+      OPENSSL_DIR: C:\OpenSSL-v111-Win32
       OPENSSL_LIBS: libssl_static:libcrypto_static
       OPENSSL_STATIC: 1
-      OPENSSL_VERSION: 1_1_1a
     - TARGET: x86_64-pc-windows-msvc
-      BITS: 64
-      OPENSSL_DIR: C:\OpenSSL
+      OPENSSL_DIR: C:\OpenSSL-v111-Win64
       OPENSSL_LIBS: libssl_static:libcrypto_static
       OPENSSL_STATIC: 1
-      OPENSSL_VERSION: 1_1_1a
 
     # MinGW
     - TARGET: i686-pc-windows-gnu
@@ -28,12 +24,6 @@ environment:
       MSYS2: 1
 
 install:
-  # Install OpenSSL
-  - mkdir C:\OpenSSL
-  - ps: if (Test-Path env:OPENSSL_VERSION) { Start-FileDownload "http://slproweb.com/download/Win${env:BITS}OpenSSL-${env:OPENSSL_VERSION}.exe" }
-  - if defined OPENSSL_VERSION Win%BITS%OpenSSL-%OPENSSL_VERSION%.exe /SILENT /VERYSILENT /SP- /DIR="C:\OpenSSL"
-  - appveyor DownloadFile https://curl.haxx.se/ca/cacert.pem -FileName C:\OpenSSL\cacert.pem
-
   # Install Rust
   - if defined MSYS2 set PATH=C:\msys64\mingw%BITS%\bin;%PATH%
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
