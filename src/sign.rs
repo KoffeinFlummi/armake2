@@ -49,9 +49,8 @@ pub struct BISign {
 
 fn write_bignum<O: Write>(output: &mut O, bn: &BigNum, size: usize) -> Result<(), Error> {
     let mut vec: Vec<u8> = bn.to_vec();
-    vec.resize(size, 0);
-
     vec = vec.iter().rev().map(|x| *x).collect();
+    vec.resize(size, 0);
 
     Ok(output.write_all(&vec)?)
 }
