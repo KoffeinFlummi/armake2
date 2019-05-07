@@ -1,7 +1,7 @@
 use std::str;
 use crate::preprocess::*;
 
-newline = "\r\n" / "\n"
+newline = "\r\n" / "\n" / "\r"
 
 name -> String = n:$([a-zA-Z0-9_]+) {
     n.to_string()
