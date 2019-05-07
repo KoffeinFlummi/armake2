@@ -1,3 +1,5 @@
+//! Functions for preprocessing Arma configs and scripts
+
 use std::env::current_dir;
 use std::clone::Clone;
 use std::io::{Read, Write, Error};
@@ -9,9 +11,11 @@ use std::iter::{Sum};
 use crate::error::*;
 
 pub mod preprocess_grammar {
+    #![allow(missing_docs)]
     include!(concat!(env!("OUT_DIR"), "/preprocess_grammar.rs"));
 }
 
+/// Macro definition
 #[derive(Clone, Debug)]
 pub struct Definition {
     name: String,
@@ -20,17 +24,26 @@ pub struct Definition {
     local: bool
 }
 
+/// Preprocessor directive
 #[derive(Debug)]
 pub enum Directive {
+    /// `#include` directive containing the given path
     IncludeDirective(String),
+    /// `#define` directive containing the definition
     DefineDirective(Definition),
+    /// `#undef` directive containing the name of the macro
     UndefDirective(String),
+    /// `#ifdef` directive containing the name of the macro
     IfDefDirective(String),
+    /// `#ifndef` directive containing the name of the macro
     IfNDefDirective(String),
+    /// `#else` directive
     ElseDirective,
+    /// `#endif` directive
     EndIfDirective,
 }
 
+/// Potential macro invocation
 #[derive(Debug)]
 pub struct Macro {
     name: String,
@@ -39,28 +52,42 @@ pub struct Macro {
     quoted: bool,
 }
 
+/// Preprocessor token
 #[derive(Debug)]
 pub enum Token {
+    /// Non-macro token
     RegularToken(String),
+    /// Non-macro token that contains a number of newlines
     NewlineToken(String, u32),
+    /// Potential macro token
     MacroToken(Macro),
+    /// Comment token containing a number of newlines
     CommentToken(u32),
+    /// Token for the concatenation operator (`##`)
     ConcatToken
 }
 
+/// Preprocessor line
 #[derive(Debug)]
 pub enum Line {
+    /// Directive line
     DirectiveLine(Directive),
+    /// Non-directive line of tokens
     TokenLine(Vec<Token>),
 }
 
+/// Struct for additional information about preprocessor output. Contains import stack used for
+/// loop detection and the origins of all the lines in the output.
 #[derive(Debug)]
 pub struct PreprocessInfo {
+    /// For every line in the output, `line_origins` contains a line number (starting at 1) and a
+    /// `PathBuf` to the file where the line was found. The path may be `None` if the line was in the
+    /// original input to `preprocess` and `origin` was not given.
     pub line_origins: Vec<(u32, Option<PathBuf>)>,
-    pub import_stack: Vec<PathBuf>
+    import_stack: Vec<PathBuf>
 }
 
-pub fn parse_macro(input: &str) -> Macro {
+fn parse_macro(input: &str) -> Macro {
     let without_original: Macro = preprocess_grammar::macro_proper(input).unwrap();
 
     Macro {
@@ -93,7 +120,7 @@ impl Clone for Token {
 }
 
 impl Definition {
-    pub fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &Vec<Definition>) -> Result<Option<Vec<Token>>, Error> {
+    fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &Vec<Definition>) -> Result<Option<Vec<Token>>, Error> {
         let params = self.parameters.clone().unwrap_or(Vec::new());
         let args = arguments.clone().unwrap_or(Vec::new());
 
@@ -141,7 +168,7 @@ impl Definition {
 }
 
 impl Macro {
-    pub fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
         let mut tokens: Vec<Token> = Vec::new();
         tokens.push(Token::RegularToken(self.name.clone()));
 
@@ -160,7 +187,7 @@ impl Macro {
         Ok(tokens)
     }
 
-    pub fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
         match def_map.get(&self.name) {
             Some(def) => {
                 let value = def.value(&self.arguments, def_map, stack)?;
@@ -186,7 +213,7 @@ impl Macro {
         }
     }
 
-    pub fn resolve_all(tokens: &Vec<Token>, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve_all(tokens: &Vec<Token>, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
         let mut result: Vec<Token> = Vec::new();
 
         for token in tokens {
@@ -208,7 +235,7 @@ impl Macro {
 }
 
 impl Token {
-    pub fn concat(tokens: &Vec<Token>) -> (String, u32) {
+    fn concat(tokens: &Vec<Token>) -> (String, u32) {
         let mut output = String::new();
         let mut newlines = 0;
 
@@ -242,6 +269,7 @@ fn read_prefix(prefix_path: &Path) -> String {
     content.replace("\r\n","\n").split("\n").nth(0).unwrap().to_string()
 }
 
+/// Returns the path seperator used on the current operating system
 pub fn pathsep() -> &'static str {
     if cfg!(windows) { "\\" } else { "/" }
 }
@@ -322,7 +350,7 @@ fn canonicalize(path: PathBuf) -> PathBuf {
     result
 }
 
-pub fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_paths: &Vec<PathBuf>) -> Result<PathBuf, Error> {
+fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_paths: &Vec<PathBuf>) -> Result<PathBuf, Error> {
     if include_path.chars().nth(0).unwrap() != '\\' {
         let mut path = PathBuf::from(include_path.replace("\\", pathsep()));
 
@@ -459,6 +487,28 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
     Ok(output)
 }
 
+/// Reads input string and returns preprocessed string with an info struct containing the origins
+/// of the lines in the output.
+///
+/// `path` is the path to the input if it is known and is used for relative includes and error
+/// messages. `includefolders` are the folders searched for absolute includes and should usually at
+/// least include the current working directory.
+///
+/// # Examples
+///
+/// ```
+/// # use armake2::preprocess::preprocess;
+/// let input = String::from("
+/// #define QUOTE(x) #x
+/// #define DOUBLES(x,y) x##_##y
+///
+/// foo = QUOTE(DOUBLES(abc, xyz));
+/// ");
+///
+/// let (output, _) = preprocess(input, None, &Vec::new()).expect("Failed to preprocess");
+///
+/// assert_eq!("foo = \"abc_xyz\";", output.trim());
+/// ```
 pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(String, PreprocessInfo), Error> {
     if input[..3].as_bytes() == &[0xef,0xbb,0xbf] {
         input = input[3..].to_string();
@@ -481,6 +531,11 @@ pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &V
     }
 }
 
+/// Reads input, preprocesses it and writes to output.
+///
+/// `path` is the `path` to the input if it is known and is used for relative includes and error
+/// messages. `includefolders` are the folders searched for absolute includes and should usually at
+/// least include the current working directory.
 pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
     let mut buffer = String::new();
     input.read_to_string(&mut buffer).expect("Failed to read input file");

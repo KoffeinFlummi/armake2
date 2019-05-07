@@ -1,3 +1,5 @@
+//#![deny(missing_docs)]
+
 pub mod binarize;
 pub mod config;
 pub mod error;

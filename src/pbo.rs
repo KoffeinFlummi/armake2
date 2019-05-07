@@ -1,4 +1,4 @@
-use std::io::{Read, Write, Error, Cursor};
+use std::io::{Read, Write, Seek, SeekFrom, Error, Cursor};
 use std::fs::{File, create_dir_all, read_dir};
 use std::ffi::{OsStr};
 use std::collections::{HashMap};
@@ -24,10 +24,28 @@ struct PBOHeader {
     data_size: u32
 }
 
+/// PBO file
+///
+/// # Examples
+///
+/// ```
+/// # use std::path::PathBuf;
+/// # use armake2::pbo::PBO;
+/// let pbo = PBO::from_directory(PathBuf::from("src"), false, &Vec::new(), &Vec::new()).expect("Failed to create PBO");
+///
+/// assert!(pbo.files.iter().any(|(name, _data)| name == "main.rs"));
+///
+/// let mut cursor = pbo.to_cursor().unwrap();
+/// let reread = PBO::read(&mut cursor).unwrap();
+///
+/// assert!(reread.checksum.is_some());
+/// ```
 pub struct PBO {
     pub files: LinkedHashMap<String, Cursor<Box<[u8]>>>,
     pub header_extensions: HashMap<String, String>,
     headers: Vec<PBOHeader>,
+    /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
+    /// and included in the output
     pub checksum: Option<Vec<u8>>
 }
 
@@ -77,6 +95,7 @@ fn file_allowed(name: &String, exclude_patterns: &Vec<String>) -> bool {
 }
 
 impl PBO {
+    /// Reads an existing PBO from input.
     pub fn read<I: Read>(input: &mut I) -> Result<PBO, Error> {
         let mut headers: Vec<PBOHeader> = Vec::new();
         let mut first = true;
@@ -123,7 +142,12 @@ impl PBO {
         })
     }
 
-    fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
+    /// Constructs a PBO from a directory with optional binarization.
+    ///
+    /// `exclude_patterns` contains glob patterns to exclude from the PBO, `includefolders` contain
+    /// paths to search for absolute includes and should generally include the current working
+    /// directory.
+    pub fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
@@ -191,7 +215,8 @@ impl PBO {
         })
     }
 
-    fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
+    /// Writes PBO to output.
+    pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         let mut headers: Cursor<Vec<u8>> = Cursor::new(Vec::new());
 
         let ext_header = PBOHeader {
@@ -253,6 +278,16 @@ impl PBO {
         output.write_all(&*h.finish().unwrap())?;
 
         Ok(())
+    }
+
+    /// Returns the PBO as a `Cursor`.
+    pub fn to_cursor(&self) -> Result<Cursor<Vec<u8>>, Error> {
+        let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+        self.write(&mut cursor)?;
+
+        cursor.seek(SeekFrom::Start(0))?;
+
+        Ok(cursor)
     }
 }
 

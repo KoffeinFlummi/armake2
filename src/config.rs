@@ -1,3 +1,5 @@
+//! Functions for rapifying and derapifying Arma configs
+
 use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::cmp::{min};
@@ -11,14 +13,33 @@ use crate::error::*;
 use crate::preprocess::*;
 
 pub mod config_grammar {
+    #![allow(missing_docs)]
     include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));
 }
 
+/// Config
+///
+/// # Examples
+///
+/// ```
+/// # use armake2::config::Config;
+/// let input = String::from("
+/// #define bar 42
+///
+/// foo = bar;
+/// ");
+///
+/// let config = Config::from_string(input, None, &Vec::new()).expect("Failed to parse config");
+///
+/// assert_eq!("foo = 42;\n", config.to_string().unwrap());
+/// assert_eq!(b"\0raP", &config.to_cursor().unwrap().into_inner()[..4]);
+/// ```
 #[derive(Debug)]
 pub struct Config {
     root_body: ConfigClass,
 }
 
+/// Config class
 #[derive(Debug)]
 pub struct ConfigClass {
     parent: String,
@@ -27,26 +48,38 @@ pub struct ConfigClass {
     entries: Option<Vec<(String, ConfigEntry)>>,
 }
 
+/// Config entry
 #[derive(Debug)]
 pub enum ConfigEntry {
+    /// String entry
     StringEntry(String),
+    /// Float entry
     FloatEntry(f32),
+    /// Int entry
     IntEntry(i32),
+    /// Array entry
     ArrayEntry(ConfigArray),
+    /// Class entry
     ClassEntry(ConfigClass),
 }
 
+/// Config array
 #[derive(Debug)]
 pub struct ConfigArray {
     is_expansion: bool,
     elements: Vec<ConfigArrayElement>,
 }
 
+/// Config array element
 #[derive(Debug)]
 pub enum ConfigArrayElement {
+    /// String element
     StringElement(String),
+    /// Float element
     FloatElement(f32),
+    /// Int element
     IntElement(i32),
+    /// Array element
     ArrayElement(ConfigArray),
 }
 
@@ -396,10 +429,12 @@ impl ConfigClass {
 }
 
 impl Config {
+    /// Writes the config (unrapified) to the output.
     pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         self.root_body.write(output, 0)
     }
 
+    /// Returns the unrapified config as a string.
     pub fn to_string(&self) -> Result<String, Error> {
         let buffer = Vec::new();
         let mut cursor: Cursor<Vec<u8>> = Cursor::new(buffer);
@@ -408,6 +443,7 @@ impl Config {
         Ok(String::from_utf8(cursor.into_inner()).unwrap())
     }
 
+    /// Writes the rapified config to the output.
     pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         let mut writer = BufWriter::new(output);
 
@@ -428,6 +464,7 @@ impl Config {
         Ok(())
     }
 
+    /// Returns the rapified config as a `Cursor`.
     pub fn to_cursor(&self) -> Result<Cursor<Box<[u8]>>, Error> {
         let len = self.root_body.rapified_length() + 20;
 
@@ -438,6 +475,11 @@ impl Config {
         Ok(cursor)
     }
 
+    /// Reads the unrapified config from input, preprocessing it.
+    ///
+    /// `path` is the path to the input if it is known and is used for relative includes and error
+    /// messages. `includefolders` are the folders searched for absolute includes and should usually at
+    /// least include the current working directory.
     pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<Config, Error> {
         let mut buffer = String::new();
         input.read_to_string(&mut buffer).prepend_error("Failed to read input file:")?;
@@ -465,6 +507,17 @@ impl Config {
         result
     }
 
+    /// Preprocesses and parses input string.
+    ///
+    /// `path` is the path to the input if it is known and is used for relative includes and error
+    /// messages. `includefolders` are the folders searched for absolute includes and should usually at
+    /// least include the current working directory.
+    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<Config, Error> {
+        let mut cursor = Cursor::new(input.into_bytes());
+        Self::read(&mut cursor, path, includefolders)
+    }
+
+    /// Reads the rapified config from input.
     pub fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<Config, Error> {
         let mut reader = BufReader::new(input);
 
@@ -481,6 +534,11 @@ impl Config {
     }
 }
 
+/// Reads input, preprocesses and rapifies it and writes to output.
+///
+/// `path` is the path to the input if it is known and is used for relative includes and error
+/// messages. `includefolders` are the folders searched for absolute includes and should usually at
+/// least include the current working directory.
 pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
     let config = Config::read(input, path, includefolders).prepend_error("Failed to parse config:")?;
 
@@ -489,6 +547,7 @@ pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option
     Ok(())
 }
 
+/// Reads input, derapifies it and writes to output.
 pub fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), Error> {
     let config = Config::read_rapified(input).prepend_error("Failed to read rapified config:")?;
 

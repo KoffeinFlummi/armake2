@@ -1,3 +1,5 @@
+//! Functions for calling BI's binarize.exe (on Windows)
+
 use std::io::{Read, Write, Cursor, Error};
 use std::fs::{File, create_dir_all, remove_dir_all};
 use std::path::{PathBuf};
@@ -43,6 +45,7 @@ fn create_temp_directory(name: &String) -> Result<PathBuf, Error> {
     Ok(path)
 }
 
+/// Binarizes the given path with BI's binarize.exe (Only available on Windows).
 pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
     if !cfg!(windows) {
         return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
@@ -88,6 +91,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
     Ok(Cursor::new(buffer.into_boxed_slice()))
 }
 
+/// Binarizes the given path using BI's binarize.exe (on Windows) and writes it to the output.
 pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), Error> {
     if !cfg!(windows) {
         return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));

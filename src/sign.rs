@@ -1,3 +1,5 @@
+//! Functions for creating and working with BI keys and signatures
+
 use std::io::{Read, Write, Error, Cursor};
 use std::fs::{File};
 use std::path::{PathBuf};
@@ -10,6 +12,7 @@ use openssl::rsa::{Rsa};
 use crate::io::*;
 use crate::pbo::*;
 
+/// BI private key (.biprivatekey)
 pub struct BIPrivateKey {
     name: String,
     length: u32,
@@ -23,6 +26,7 @@ pub struct BIPrivateKey {
     d: BigNum
 }
 
+/// BI public key (.bikey)
 pub struct BIPublicKey {
     name: String,
     length: u32,
@@ -30,12 +34,16 @@ pub struct BIPublicKey {
     n: BigNum
 }
 
+/// BI signature version
 #[derive(Copy,Clone)]
 pub enum BISignVersion {
+    /// Version 2
     V2,
+    /// Version 3
     V3
 }
 
+/// BI signature (.bisign)
 pub struct BISign {
     version: BISignVersion,
     name: String,
@@ -148,6 +156,7 @@ fn pad_hash(hash: &[u8], size: usize) -> BigNum {
 }
 
 impl BIPrivateKey {
+    /// Reads a private key from the given input.
     pub fn read<I: Read>(input: &mut I) -> Result<BIPrivateKey, Error> {
         let name = input.read_cstring()?;
         let temp = input.read_u32::<LittleEndian>()?;
@@ -208,6 +217,9 @@ impl BIPrivateKey {
         })
     }
 
+    /// Generate a new private key with the given name and bitlength.
+    ///
+    /// Arma 3 uses 1024 bit keys.
     pub fn generate(length: u32, name: String) -> BIPrivateKey {
         let rsa = Rsa::generate(length).expect("Failed to generate keypair");
 
@@ -225,6 +237,7 @@ impl BIPrivateKey {
         }
     }
 
+    /// Returns the public key for this private key.
     pub fn to_public_key(&self) -> BIPublicKey {
         BIPublicKey {
             name: self.name.clone(),
@@ -234,6 +247,7 @@ impl BIPrivateKey {
         }
     }
 
+    /// Signs the given PBO with this private key.
     pub fn sign(&self, pbo: &PBO, version: BISignVersion) -> BISign {
         let (hash1, hash2, hash3) = generate_hashes(pbo, version, self.length);
 
@@ -258,6 +272,7 @@ impl BIPrivateKey {
         }
     }
 
+    /// Write private key to output.
     pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         output.write_cstring(&self.name)?;
         output.write_u32::<LittleEndian>(self.length / 16 * 9 + 20)?;
@@ -277,6 +292,7 @@ impl BIPrivateKey {
 }
 
 impl BIPublicKey {
+    /// Reads a public key from the given input.
     pub fn read<I: Read>(input: &mut I) -> Result<BIPublicKey, Error> {
         let name = input.read_cstring()?;
         let temp = input.read_u32::<LittleEndian>()?;
@@ -301,6 +317,8 @@ impl BIPublicKey {
         })
     }
 
+    // @todo: example
+    /// Verifies a signature against this public key.
     pub fn verify(&self, pbo: &PBO, signature: &BISign) -> Result<(), Error> {
         let (real_hash1, real_hash2, real_hash3) = generate_hashes(pbo, signature.version, self.length);
 
@@ -336,6 +354,7 @@ impl BIPublicKey {
         Ok(())
     }
 
+    /// Write public key to output.
     pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         output.write_cstring(&self.name)?;
         output.write_u32::<LittleEndian>(self.length / 8 + 20)?;
@@ -357,7 +376,9 @@ impl Into<u32> for BISignVersion {
     }
 }
 
+/// BI signature (.bisign)
 impl BISign {
+    /// Reads a signature from the given input.
     pub fn read<I: Read>(input: &mut I) -> Result<BISign, Error> {
         let name = input.read_cstring()?;
         let temp = input.read_u32::<LittleEndian>()?;
@@ -415,6 +436,7 @@ impl BISign {
         })
     }
 
+    /// Writes the signature to the given output.
     pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
         output.write_cstring(&self.name)?;
         output.write_u32::<LittleEndian>(self.length / 8 + 20)?;
@@ -434,6 +456,9 @@ impl BISign {
     }
 }
 
+/// Generates a key pair with the given name.
+///
+/// The output paths are created by appending extensions to the keyname.
 pub fn cmd_keygen(keyname: PathBuf) -> Result<(), Error> {
     let private_key = BIPrivateKey::generate(1024, keyname.file_name().unwrap().to_str().unwrap().to_string());
     let public_key = private_key.to_public_key();
@@ -450,6 +475,9 @@ pub fn cmd_keygen(keyname: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
+/// Signs a PBO with the given private key.
+///
+/// If the signature path is not given it is inferred from the PBO path.
 pub fn cmd_sign(privatekey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>, version: BISignVersion) -> Result<(), Error> {
     let privatekey = BIPrivateKey::read(&mut File::open(&privatekey_path).expect("Failed to open private key")).expect("Failed to read private key");
     let pbo = PBO::read(&mut File::open(&pbo_path).expect("Failed to open PBO")).expect("Failed to read PBO");
@@ -469,6 +497,9 @@ pub fn cmd_sign(privatekey_path: PathBuf, pbo_path: PathBuf, signature_path: Opt
     Ok(())
 }
 
+/// Verifies a signature for a pbo against a given public key.
+///
+/// If the signature path is not given it is inferred from the PBO path.
 pub fn cmd_verify(publickey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>) -> Result<(), Error> {
     let publickey = BIPublicKey::read(&mut File::open(&publickey_path).expect("Failed to open public key")).expect("Failed to read public key");
     let pbo = PBO::read(&mut File::open(&pbo_path).expect("Failed to open PBO")).expect("Failed to read PBO");
