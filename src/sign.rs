@@ -69,7 +69,11 @@ fn namehash(pbo: &PBO) -> DigestBytes {
 
     let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
 
-    for (name, _) in &files_sorted {
+    for (name, data) in &files_sorted {
+        if data.get_ref().len() == 0 {
+            continue;
+        }
+
         h.update(name.as_bytes()).unwrap();
     }
 
