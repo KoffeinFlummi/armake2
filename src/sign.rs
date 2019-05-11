@@ -155,6 +155,24 @@ fn pad_hash(hash: &[u8], size: usize) -> BigNum {
     BigNum::from_slice(&vec).unwrap()
 }
 
+fn display_hashes(a: BigNum, b: BigNum) -> (String, String) {
+    let hexa = a.to_hex_str().unwrap().to_lowercase();
+    let hexb = b.to_hex_str().unwrap().to_lowercase();
+
+    if hexa.len() != hexb.len() || hexa.len() <= 40 {
+        return (hexa, hexb);
+    }
+
+    let (paddinga, hasha) = hexa.split_at(hexa.len() - 40);
+    let (paddingb, hashb) = hexb.split_at(hexb.len() - 40);
+
+    if paddinga != paddingb {
+        (hexa, hexb)
+    } else {
+        (hasha.to_string(), hashb.to_string())
+    }
+}
+
 impl BIPrivateKey {
     /// Reads a private key from the given input.
     pub fn read<I: Read>(input: &mut I) -> Result<BIPrivateKey, Error> {
@@ -334,21 +352,18 @@ impl BIPublicKey {
         signed_hash3.mod_exp(&signature.sig3, &exponent, &self.n, &mut ctx).unwrap();
 
         if real_hash1 != signed_hash1 {
-            return Err(error!(
-                "Hash 1 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash1.to_hex_str().unwrap(), real_hash1.to_hex_str().unwrap()));
+            let (s, r) = display_hashes(signed_hash1, real_hash1);
+            return Err(error!("Hash 1 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
         }
 
         if real_hash2 != signed_hash2 {
-            return Err(error!(
-                "Hash 2 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash2.to_hex_str().unwrap(), real_hash2.to_hex_str().unwrap()));
+            let (s, r) = display_hashes(signed_hash2, real_hash2);
+            return Err(error!("Hash 2 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
         }
 
         if real_hash3 != signed_hash3 {
-            return Err(error!(
-                "Hash 3 doesn't match\nSigned hash: {}\nReal hash:   {}",
-                signed_hash3.to_hex_str().unwrap(), real_hash3.to_hex_str().unwrap()));
+            let (s, r) = display_hashes(signed_hash3, real_hash3);
+            return Err(error!("Hash 3 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
         }
 
         Ok(())
