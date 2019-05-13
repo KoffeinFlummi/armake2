@@ -538,11 +538,11 @@ pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &V
 /// least include the current working directory.
 pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
     let mut buffer = String::new();
-    input.read_to_string(&mut buffer).expect("Failed to read input file");
+    input.read_to_string(&mut buffer).prepend_error("Failed to read input file")?;
 
-    let (result, _) = preprocess(buffer, path, includefolders).expect("Failed to preprocess file");
+    let (result, _) = preprocess(buffer, path, includefolders)?;
 
-    output.write_all(result.as_bytes()).expect("Failed to write output");
+    output.write_all(result.as_bytes()).prepend_error("Failed to write output")?;
 
     Ok(())
 }

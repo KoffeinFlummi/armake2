@@ -372,7 +372,7 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> 
 }
 
 pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>) -> Result<(), Error> {
-    let mut pbo = PBO::from_directory(input, false, excludes, &Vec::new()).prepend_error("Failed to build PBO:")?;
+    let mut pbo = PBO::from_directory(input, false, excludes, &Vec::new())?;
 
     for h in headerext {
         let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());
@@ -385,7 +385,7 @@ pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String
 }
 
 pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
-    let mut pbo = PBO::from_directory(input, true, excludes, includefolders).prepend_error("Failed to build PBO:")?;
+    let mut pbo = PBO::from_directory(input, true, excludes, includefolders)?;
 
     for h in headerext {
         let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());

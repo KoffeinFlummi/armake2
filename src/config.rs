@@ -540,7 +540,7 @@ impl Config {
 /// messages. `includefolders` are the folders searched for absolute includes and should usually at
 /// least include the current working directory.
 pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
-    let config = Config::read(input, path, includefolders).prepend_error("Failed to parse config:")?;
+    let config = Config::read(input, path, includefolders)?;
 
     config.write_rapified(output).prepend_error("Failed to write rapified config:")?;
 
