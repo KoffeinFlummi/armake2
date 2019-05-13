@@ -27,7 +27,7 @@ Usage:
     armake2 derapify [-v] [-f] [-d <indentation>] [<source> [<target>]]
     armake2 binarize [-v] [-f] [-w <wname>]... <source> <target>
     armake2 build [-v] [-f] [-w <wname>]... [-i <includefolder>]... [-x <excludepattern>]... [-e <headerext>]... [-k <privatekey>] [-s <signature>] <sourcefolder> [<target>]
-    armake2 pack [-v] [-f] [-k <privatekey>] [-s <signature>] [-x <excludepattern>]... <sourcefolder> [<target>]
+    armake2 pack [-v] [-f] [-x <excludepattern>]... [-e <headerext>]... [-k <privatekey>] [-s <signature>] <sourcefolder> [<target>]
     armake2 inspect [-v] [<source>]
     armake2 unpack [-v] [-f] <source> <targetfolder>
     armake2 cat [-v] <source> <filename> [<target>]
