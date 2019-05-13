@@ -32,7 +32,7 @@ Usage:
     armake2 unpack [-v] [-f] <source> <targetfolder>
     armake2 cat [-v] <source> <filename> [<target>]
     armake2 keygen [-v] [-f] <keyname>
-    armake2 sign [-v] [-f] [-s <signature>] [--v2] <privatekey> <pbo> [<signature>]
+    armake2 sign [-v] [-f] [--v2] <privatekey> <pbo> [<signature>]
     armake2 verify [-v] <publickey> <pbo> [<signature>]
     armake2 paa2img [-v] [-f] [<source> [<target>]]
     armake2 img2paa [-v] [-f] [-z] [-t <paatype>] [<source> [<target>]]
