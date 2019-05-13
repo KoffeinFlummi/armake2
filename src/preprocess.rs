@@ -266,7 +266,7 @@ fn read_prefix(prefix_path: &Path) -> String {
     let mut content = String::new();
     File::open(prefix_path).unwrap().read_to_string(&mut content).unwrap();
 
-    content.replace("\r\n","\n").split("\n").nth(0).unwrap().to_string()
+    content.lines().nth(0).unwrap().to_string()
 }
 
 /// Returns the path seperator used on the current operating system
