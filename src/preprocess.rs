@@ -366,8 +366,8 @@ fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_pat
 
         if !absolute.is_file() {
             match origin {
-                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" doesn't exist.", include_path, origin_path.to_str().unwrap().to_string())),
-                None => Err(error!("Included file \"{}\" doesn't exist.", include_path))
+                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
+                None => Err(error!("Included file \"{}\" not found.", include_path))
             }
         } else {
             Ok(absolute)
