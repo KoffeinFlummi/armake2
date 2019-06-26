@@ -1,7 +1,7 @@
+use armake2::*;
 use docopt::Docopt;
 
 use crate::run::{USAGE, Args};
-use armake2::*;
 
 fn main() {
     let mut args: Args = Docopt::new(USAGE)

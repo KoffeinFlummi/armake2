@@ -1,12 +1,12 @@
-use std::io::{Read, Write, Seek, SeekFrom, Error, Cursor};
-use std::fs::{File, create_dir_all, read_dir};
-use std::ffi::{OsStr};
 use std::collections::{HashMap};
+use std::ffi::{OsStr};
+use std::fs::{File, create_dir_all, read_dir};
+use std::io::{Read, Write, Seek, SeekFrom, Error, Cursor};
 use std::path::{PathBuf};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use openssl::hash::{Hasher, MessageDigest};
 use linked_hash_map::{LinkedHashMap};
+use openssl::hash::{Hasher, MessageDigest};
 use regex::{Regex};
 
 use crate::error::*;
@@ -21,7 +21,7 @@ struct PBOHeader {
     original_size: u32,
     reserved: u32,
     timestamp: u32,
-    data_size: u32
+    data_size: u32,
 }
 
 /// PBO file
@@ -46,7 +46,7 @@ pub struct PBO {
     headers: Vec<PBOHeader>,
     /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
     /// and included in the output
-    pub checksum: Option<Vec<u8>>
+    pub checksum: Option<Vec<u8>>,
 }
 
 impl PBOHeader {
@@ -57,7 +57,7 @@ impl PBOHeader {
             original_size: input.read_u32::<LittleEndian>()?,
             reserved: input.read_u32::<LittleEndian>()?,
             timestamp: input.read_u32::<LittleEndian>()?,
-            data_size: input.read_u32::<LittleEndian>()?
+            data_size: input.read_u32::<LittleEndian>()?,
         })
     }
 
@@ -72,7 +72,7 @@ impl PBOHeader {
     }
 }
 
-fn matches_glob(s: &String, pattern: &String) -> bool {
+fn matches_glob(s: &str, pattern: &str) -> bool {
     if let Some(index) = pattern.find('*') {
         if s[..index] != pattern[..index] { return false; }
 
@@ -86,7 +86,7 @@ fn matches_glob(s: &String, pattern: &String) -> bool {
     }
 }
 
-fn file_allowed(name: &String, exclude_patterns: &Vec<String>) -> bool {
+fn file_allowed(name: &str, exclude_patterns: &[String]) -> bool {
     for pattern in exclude_patterns {
         if matches_glob(&name, &pattern) { return false; }
     }
@@ -105,12 +105,12 @@ impl PBO {
             let header = PBOHeader::read(input)?;
             // todo: garbage filter
 
-            if header.packing_method == 0x56657273 {
+            if header.packing_method == 0x5665_7273 {
                 if !first { unreachable!(); }
 
                 loop {
                     let s = input.read_cstring()?;
-                    if s.len() == 0 { break; }
+                    if s.is_empty() { break; }
 
                     header_extensions.insert(s, input.read_cstring()?);
                 }
@@ -135,10 +135,10 @@ impl PBO {
         input.read_exact(&mut checksum)?;
 
         Ok(PBO {
-            files: files,
-            header_extensions: header_extensions,
-            headers: headers,
-            checksum: Some(checksum)
+            files,
+            header_extensions,
+            headers,
+            checksum: Some(checksum),
         })
     }
 
@@ -147,7 +147,7 @@ impl PBO {
     /// `exclude_patterns` contains glob patterns to exclude from the PBO, `includefolders` contain
     /// paths to search for absolute includes and should generally include the current working
     /// directory.
-    pub fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<PBO, Error> {
+    pub fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &[String], includefolders: &[PathBuf]) -> Result<PBO, Error> {
         let file_list = list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
         let mut header_extensions: HashMap<String,String> = HashMap::new();
@@ -169,16 +169,16 @@ impl PBO {
                 let mut content = String::new();
                 file.read_to_string(&mut content)?;
                 for l in content.lines() {
-                    if l.len() == 0 { break; }
+                    if l.is_empty() { break; }
 
-                    let eq: Vec<String> = l.split("=").map(|s| s.to_string()).collect();
+                    let eq: Vec<String> = l.split('=').map(|s| s.to_string()).collect();
                     if eq.len() == 1 {
                         header_extensions.insert("prefix".to_string(), l.to_string());
                     } else {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if binarize && vec!["cpp", "rvmat", "ext"].contains(&path.extension().unwrap_or(OsStr::new("")).to_str().unwrap()) {
+            } else if binarize && vec!["cpp", "rvmat", "ext"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
                 let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
 
                 let cursor = config.to_cursor()?;
@@ -208,10 +208,10 @@ impl PBO {
         }
 
         Ok(PBO {
-            files: files,
-            header_extensions: header_extensions,
+            files,
+            header_extensions,
             headers: Vec::new(),
-            checksum: None
+            checksum: None,
         })
     }
 
@@ -221,11 +221,11 @@ impl PBO {
 
         let ext_header = PBOHeader {
             filename: "".to_string(),
-            packing_method: 0x56657273,
+            packing_method: 0x5665_7273,
             original_size: 0,
             reserved: 0,
             timestamp: 0,
-            data_size: 0
+            data_size: 0,
         };
         ext_header.write(&mut headers)?;
 
@@ -252,7 +252,7 @@ impl PBO {
                 original_size: cursor.get_ref().len() as u32,
                 reserved: 0,
                 timestamp: 0,
-                data_size: cursor.get_ref().len() as u32
+                data_size: cursor.get_ref().len() as u32,
             };
 
             header.write(&mut headers)?;
@@ -311,12 +311,12 @@ fn list_files(directory: &PathBuf) -> Result<Vec<PathBuf>, Error> {
 pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), Error> {
     let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
-    if pbo.header_extensions.len() > 0 {
+    if !pbo.header_extensions.is_empty() {
         println!("Header extensions:");
         for (key, value) in pbo.header_extensions.iter() {
             println!("- {}={}", key, value);
         }
-        println!("");
+        println!();
     }
 
     println!("# Files: {}\n", pbo.files.len());
@@ -331,7 +331,7 @@ pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &String) -> Result<(), Error> {
+pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &str) -> Result<(), Error> {
     let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
     match pbo.files.get(name) {
@@ -351,7 +351,7 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> 
 
     create_dir_all(&output).prepend_error("Failed to create output folder:")?;
 
-    if pbo.header_extensions.len() > 0 {
+    if !pbo.header_extensions.is_empty() {
         let prefix_path = output.join(PathBuf::from("$PBOPREFIX$"));
         let mut prefix_file = File::create(prefix_path).prepend_error("Failed to create prefix file:")?;
 
@@ -371,11 +371,11 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), Error> 
     Ok(())
 }
 
-pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>) -> Result<(), Error> {
+pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &[String], excludes: &[String]) -> Result<(), Error> {
     let mut pbo = PBO::from_directory(input, false, excludes, &Vec::new())?;
 
     for h in headerext {
-        let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());
+        let (key, value) = (h.split('=').nth(0).unwrap(), h.split('=').nth(1).unwrap());
         pbo.header_extensions.insert(key.to_string(), value.to_string());
     }
 
@@ -384,11 +384,11 @@ pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String
     Ok(())
 }
 
-pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &Vec<String>, excludes: &Vec<String>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &[String], excludes: &[String], includefolders: &[PathBuf]) -> Result<(), Error> {
     let mut pbo = PBO::from_directory(input, true, excludes, includefolders)?;
 
     for h in headerext {
-        let (key, value) = (h.split("=").nth(0).unwrap(), h.split("=").nth(1).unwrap());
+        let (key, value) = (h.split('=').nth(0).unwrap(), h.split('=').nth(1).unwrap());
         pbo.header_extensions.insert(key.to_string(), value.to_string());
     }
 

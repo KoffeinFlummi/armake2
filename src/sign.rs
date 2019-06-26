@@ -1,12 +1,12 @@
 //! Functions for creating and working with BI keys and signatures
 
-use std::io::{Read, Write, Error, Cursor};
 use std::fs::{File};
+use std::io::{Read, Write, Error, Cursor};
 use std::path::{PathBuf};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 use openssl::bn::{BigNum, BigNumContext};
+use openssl::hash::{Hasher, MessageDigest, DigestBytes};
 use openssl::rsa::{Rsa};
 
 use crate::io::*;
@@ -57,7 +57,7 @@ pub struct BISign {
 
 fn write_bignum<O: Write>(output: &mut O, bn: &BigNum, size: usize) -> Result<(), Error> {
     let mut vec: Vec<u8> = bn.to_vec();
-    vec = vec.iter().rev().map(|x| *x).collect();
+    vec = vec.iter().rev().cloned().collect();
     vec.resize(size, 0);
 
     Ok(output.write_all(&vec)?)
@@ -85,7 +85,7 @@ fn filehash(pbo: &PBO, version: BISignVersion) -> DigestBytes {
     let mut nothing = true;
 
     for (name, cursor) in pbo.files.iter() {
-        let ext = name.split(".").last().unwrap();
+        let ext = name.split('.').last().unwrap();
 
         match version {
             BISignVersion::V2 => {
@@ -124,7 +124,7 @@ fn generate_hashes(pbo: &PBO, version: BISignVersion, length: u32) -> (BigNum, B
     h.update(&*namehash(pbo)).unwrap();
     if let Some(prefix) = pbo.header_extensions.get("prefix") {
         h.update(prefix.as_bytes()).unwrap();
-        if prefix.chars().last().unwrap() != '\\' {
+        if !prefix.ends_with('\\') {
             h.update(b"\\").unwrap();
         }
     }
@@ -135,7 +135,7 @@ fn generate_hashes(pbo: &PBO, version: BISignVersion, length: u32) -> (BigNum, B
     h.update(&*namehash(pbo)).unwrap();
     if let Some(prefix) = pbo.header_extensions.get("prefix") {
         h.update(prefix.as_bytes()).unwrap();
-        if prefix.chars().last().unwrap() != '\\' {
+        if !prefix.ends_with('\\') {
             h.update(b"\\").unwrap();
         }
     }
@@ -192,50 +192,50 @@ impl BIPrivateKey {
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let n = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 16) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let p = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 16) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let q = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 16) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let dmp1 = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 16) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let dmq1 = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 16) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let iqmp = BigNum::from_slice(&buffer).unwrap();
 
         buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let d = BigNum::from_slice(&buffer).unwrap();
 
         Ok(BIPrivateKey {
-            name: name,
-            length: length,
-            exponent: exponent,
-            n: n,
-            p: p,
-            q: q,
-            dmp1: dmp1,
-            dmq1: dmq1,
-            iqmp: iqmp,
-            d: d
+            name,
+            length,
+            exponent,
+            n,
+            p,
+            q,
+            dmp1,
+            dmq1,
+            iqmp,
+            d,
         })
     }
 
@@ -246,8 +246,8 @@ impl BIPrivateKey {
         let rsa = Rsa::generate(length).expect("Failed to generate keypair");
 
         BIPrivateKey {
-            name: name,
-            length: length,
+            name,
+            length,
             exponent: 65537,
             n: BigNum::from_slice(&rsa.n().to_vec()).unwrap(),
             p: BigNum::from_slice(&rsa.p().unwrap().to_vec()).unwrap(),
@@ -255,7 +255,7 @@ impl BIPrivateKey {
             dmp1: BigNum::from_slice(&rsa.dmp1().unwrap().to_vec()).unwrap(),
             dmq1: BigNum::from_slice(&rsa.dmq1().unwrap().to_vec()).unwrap(),
             iqmp: BigNum::from_slice(&rsa.iqmp().unwrap().to_vec()).unwrap(),
-            d: BigNum::from_slice(&rsa.d().to_vec()).unwrap()
+            d: BigNum::from_slice(&rsa.d().to_vec()).unwrap(),
         }
     }
 
@@ -265,7 +265,7 @@ impl BIPrivateKey {
             name: self.name.clone(),
             length: self.length,
             exponent: self.exponent,
-            n: BigNum::from_slice(&self.n.to_vec()).unwrap()
+            n: BigNum::from_slice(&self.n.to_vec()).unwrap(),
         }
     }
 
@@ -283,14 +283,14 @@ impl BIPrivateKey {
         sig3.mod_exp(&hash3, &self.d, &self.n, &mut ctx).unwrap();
 
         BISign {
-            version: version,
+            version,
             name: self.name.clone(),
             length: self.length,
             exponent: self.exponent,
             n: BigNum::from_slice(&self.n.to_vec()).unwrap(),
-            sig1: sig1,
-            sig2: sig2,
-            sig3: sig3
+            sig1,
+            sig2,
+            sig3,
         }
     }
 
@@ -328,14 +328,14 @@ impl BIPublicKey {
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let n = BigNum::from_slice(&buffer).unwrap();
 
         Ok(BIPublicKey {
-            name: name,
-            length: length,
-            exponent: exponent,
-            n: n
+            name,
+            length,
+            exponent,
+            n,
         })
     }
 
@@ -390,7 +390,7 @@ impl Into<u32> for BISignVersion {
     fn into(self) -> u32 {
         match self {
             BISignVersion::V2 => 2,
-            BISignVersion::V3 => 3
+            BISignVersion::V3 => 3,
         }
     }
 }
@@ -411,14 +411,14 @@ impl BISign {
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let n = BigNum::from_slice(&buffer).unwrap();
 
         input.read_u32::<LittleEndian>()?;
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let sig1 = BigNum::from_slice(&buffer).unwrap();
 
         let version = match input.read_u32::<LittleEndian>()? {
@@ -433,25 +433,25 @@ impl BISign {
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let sig2 = BigNum::from_slice(&buffer).unwrap();
 
         input.read_u32::<LittleEndian>()?;
 
         let mut buffer = vec![0; (length / 8) as usize];
         input.read_exact(&mut buffer)?;
-        buffer = buffer.iter().rev().map(|x| *x).collect();
+        buffer = buffer.iter().rev().cloned().collect();
         let sig3 = BigNum::from_slice(&buffer).unwrap();
 
         Ok(BISign {
-            version: version,
-            name: name,
-            length: length,
-            exponent: exponent,
-            n: n,
-            sig1: sig1,
-            sig2: sig2,
-            sig3: sig3
+            version,
+            name,
+            length,
+            exponent,
+            n,
+            sig1,
+            sig2,
+            sig3,
         })
     }
 

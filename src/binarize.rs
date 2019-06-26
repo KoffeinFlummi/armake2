@@ -1,9 +1,9 @@
 //! Functions for calling BI's binarize.exe (on Windows)
 
-use std::io::{Read, Write, Cursor, Error};
-use std::fs::{File, create_dir_all, remove_dir_all};
-use std::path::{PathBuf};
 use std::env::{var, temp_dir};
+use std::fs::{File, create_dir_all, remove_dir_all};
+use std::io::{Read, Write, Cursor, Error};
+use std::path::{PathBuf};
 use std::process::{Command, Stdio};
 
 #[cfg(windows)]
@@ -28,7 +28,7 @@ fn find_binarize_exe() -> Result<PathBuf, Error> {
     unreachable!();
 }
 
-fn create_temp_directory(name: &String) -> Result<PathBuf, Error> {
+fn create_temp_directory(name: &str) -> Result<PathBuf, Error> {
     let dir = temp_dir();
     let mut i = 0;
 
@@ -60,7 +60,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
     let name = input.file_name().unwrap().to_str().unwrap().to_string();
     let tempdir = create_temp_directory(&name).prepend_error("Failed to create tempfolder:")?;
 
-    let piped = var("BIOUTPUT").unwrap_or("0".to_string()) == "1";
+    let piped = var("BIOUTPUT").unwrap_or_else(|_| "0".to_string()) == "1";
 
     let binarize_output = Command::new(binarize_exe)
         .args(&["-norecurse", "-always", "-silent", "-maxProcesses=0", input_dir.to_str().unwrap(), tempdir.to_str().unwrap(), input.file_name().unwrap().to_str().unwrap()])
