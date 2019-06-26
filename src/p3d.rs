@@ -5,25 +5,25 @@ use linked_hash_map::LinkedHashMap;
 
 use crate::io::*;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Point {
     pub coords: (f32, f32, f32),
-    pub flags: u32
+    pub flags: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Vertex {
     pub point_index: u32,
     pub normal_index: u32,
-    pub uv: (f32, f32)
+    pub uv: (f32, f32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Face {
     pub vertices: Vec<Vertex>,
     pub flags: u32,
     pub texture: String,
-    pub material: String
+    pub material: String,
 }
 
 #[derive(Debug)]
@@ -34,13 +34,13 @@ pub struct LOD {
     pub points: Vec<Point>,
     pub face_normals: Vec<(f32, f32, f32)>,
     pub faces: Vec<Face>,
-    pub taggs: LinkedHashMap<String, Box<[u8]>>
+    pub taggs: LinkedHashMap<String, Box<[u8]>>,
 }
 
 #[derive(Debug)]
 pub struct P3D {
     pub version: u32,
-    pub lods: Vec<LOD>
+    pub lods: Vec<LOD>,
 }
 
 impl Point {
@@ -52,7 +52,7 @@ impl Point {
     fn read<I: Read>(input: &mut I) -> Result<Point, Error> {
         Ok(Point {
             coords: (input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?, input.read_f32::<LittleEndian>()?),
-            flags: input.read_u32::<LittleEndian>()?
+            flags: input.read_u32::<LittleEndian>()?,
         })
     }
 
@@ -95,7 +95,7 @@ impl Face {
             vertices: Vec::with_capacity(4),
             flags: 0,
             texture: String::new(),
-            material: String::new()
+            material: String::new(),
         }
     }
 
@@ -103,9 +103,9 @@ impl Face {
         let num_verts = input.read_u32::<LittleEndian>()?;
         assert!(num_verts == 3 || num_verts == 4);
 
-        let mut verts: Vec<Vertex> = Vec::with_capacity(num_verts as usize);
+        let mut vertices: Vec<Vertex> = Vec::with_capacity(num_verts as usize);
         for _i in 0..num_verts {
-            verts.push(Vertex::read(input)?);
+            vertices.push(Vertex::read(input)?);
         }
 
         if num_verts == 3 {
@@ -117,10 +117,10 @@ impl Face {
         let material = input.read_cstring()?;
 
         Ok(Face {
-            vertices: verts,
-            flags: flags,
-            texture: texture,
-            material: material
+            vertices,
+            flags,
+            texture,
+            material,
         })
     }
 
@@ -194,13 +194,13 @@ impl LOD {
         let resolution = input.read_f32::<LittleEndian>()?;
 
         Ok(LOD {
-            version_major: version_major,
-            version_minor: version_minor,
-            resolution: resolution,
-            points: points,
-            face_normals: face_normals,
-            faces: faces,
-            taggs: taggs
+            version_major,
+            version_minor,
+            resolution,
+            points,
+            face_normals,
+            faces,
+            taggs,
         })
     }
 
@@ -263,8 +263,8 @@ impl P3D {
         }
 
         Ok(P3D {
-            version: version,
-            lods: lods
+            version,
+            lods,
         })
     }
 

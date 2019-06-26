@@ -1,10 +1,10 @@
 #![macro_use]
 
-use std::io::{Error};
 use std::cmp::{min};
-use std::path::{PathBuf};
-use std::fmt::{Display};
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Display};
+use std::io::{Error};
+use std::path::{PathBuf};
 
 use colored::*;
 
@@ -34,7 +34,7 @@ impl<T> ErrorExt<T> for Result<T, Error> {
         }
     }
 
-    fn print_error(self, exit: bool) -> () {
+    fn print_error(self, exit: bool) {
         if let Err(error) = self {
             eprintln!("{}: {}", "error".red().bold(), error);
 
@@ -47,10 +47,10 @@ impl<T> ErrorExt<T> for Result<T, Error> {
 }
 
 pub trait PreprocessParseErrorExt<T> {
-    fn format_error(self, origin: &Option<PathBuf>, input: &String) -> Result<T, Error>;
+    fn format_error(self, origin: &Option<PathBuf>, input: &str) -> Result<T, Error>;
 }
 impl<T> PreprocessParseErrorExt<T> for Result<T, preprocess_grammar::ParseError> {
-    fn format_error(self, origin: &Option<PathBuf>, input: &String) -> Result<T, Error> {
+    fn format_error(self, origin: &Option<PathBuf>, input: &str) -> Result<T, Error> {
         match self {
             Ok(t) => Ok(t),
             Err(pe) => {
@@ -69,10 +69,10 @@ impl<T> PreprocessParseErrorExt<T> for Result<T, preprocess_grammar::ParseError>
 }
 
 pub trait ConfigParseErrorExt<T> {
-    fn format_error(self, info: &PreprocessInfo, input: &String) -> Result<T, Error>;
+    fn format_error(self, info: &PreprocessInfo, input: &str) -> Result<T, Error>;
 }
 impl<T> ConfigParseErrorExt<T> for Result<T, config_grammar::ParseError> {
-    fn format_error(self, info: &PreprocessInfo, input: &String) -> Result<T, Error> {
+    fn format_error(self, info: &PreprocessInfo, input: &str) -> Result<T, Error> {
         match self {
             Ok(t) => Ok(t),
             Err(pe) => {
@@ -100,11 +100,11 @@ fn format_parse_error(line: &str, file: String, line_number: usize, column_numbe
         trimmed,
         " ".to_string().repeat(column_number - 1 - (line.len() - trimmed.len())),
         "^".red().bold(),
-        line.chars().map(|x| x.to_string()).nth(column_number - 1).unwrap_or("\\n".to_string()),
+        line.chars().map(|x| x.to_string()).nth(column_number - 1).unwrap_or_else(|| "\\n".to_string()),
         expected_list.join(", "))
 }
 
-pub fn warning<M: AsRef<[u8]> + Display>(msg: M, name: Option<&'static str>, location: (Option<M>,Option<u32>)) -> () {
+pub fn warning<M: AsRef<[u8]> + Display>(msg: M, name: Option<&'static str>, location: (Option<M>,Option<u32>)) {
     unsafe {
         if WARNINGS_MUTED.is_none() {
             return;
@@ -169,7 +169,7 @@ pub fn warning_suppressed(name: Option<&'static str>) -> bool {
     }
 }
 
-pub fn print_warning_summary() -> () {
+pub fn print_warning_summary() {
     unsafe {
         if WARNINGS_RAISED.is_none() || WARNINGS_MUTED.is_none() {
             return;

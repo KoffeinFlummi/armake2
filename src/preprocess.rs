@@ -1,12 +1,12 @@
 //! Functions for preprocessing Arma configs and scripts
 
-use std::env::current_dir;
 use std::clone::Clone;
-use std::io::{Read, Write, Error};
-use std::fs::{File, read_dir};
-use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
+use std::env::current_dir;
+use std::fs::{File, read_dir};
+use std::io::{Read, Write, Error};
 use std::iter::{Sum};
+use std::path::{Path, PathBuf, Component};
 
 use crate::error::*;
 
@@ -120,9 +120,9 @@ impl Clone for Token {
 }
 
 impl Definition {
-    fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &Vec<Definition>) -> Result<Option<Vec<Token>>, Error> {
-        let params = self.parameters.clone().unwrap_or(Vec::new());
-        let args = arguments.clone().unwrap_or(Vec::new());
+    fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &[Definition]) -> Result<Option<Vec<Token>>, Error> {
+        let params = self.parameters.clone().unwrap_or_default();
+        let args = arguments.clone().unwrap_or_default();
 
         if params.len() != args.len() {
             return Ok(None);
@@ -134,10 +134,10 @@ impl Definition {
             return Ok(Some(tokens));
         }
 
-        let mut stack_new: Vec<Definition> = stack.clone();
+        let mut stack_new: Vec<Definition> = stack.to_vec();
         stack_new.push(self.clone());
 
-        if params.len() > 0 {
+        if !params.is_empty() {
             let mut local_map: HashMap<String,Definition> = HashMap::new();
 
             for (key, value) in def_map.iter() {
@@ -168,7 +168,7 @@ impl Definition {
 }
 
 impl Macro {
-    fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
         let mut tokens: Vec<Token> = Vec::new();
         tokens.push(Token::RegularToken(self.name.clone()));
 
@@ -187,7 +187,7 @@ impl Macro {
         Ok(tokens)
     }
 
-    fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
         match def_map.get(&self.name) {
             Some(def) => {
                 let value = def.value(&self.arguments, def_map, stack)?;
@@ -213,7 +213,7 @@ impl Macro {
         }
     }
 
-    fn resolve_all(tokens: &Vec<Token>, def_map: &HashMap<String, Definition>, stack: &Vec<Definition>) -> Result<Vec<Token>, Error> {
+    fn resolve_all(tokens: &[Token], def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
         let mut result: Vec<Token> = Vec::new();
 
         for token in tokens {
@@ -235,7 +235,7 @@ impl Macro {
 }
 
 impl Token {
-    fn concat(tokens: &Vec<Token>) -> (String, u32) {
+    fn concat(tokens: &[Token]) -> (String, u32) {
         let mut output = String::new();
         let mut newlines = 0;
 
@@ -274,7 +274,7 @@ pub fn pathsep() -> &'static str {
     if cfg!(windows) { "\\" } else { "/" }
 }
 
-fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
+fn matches_include_path(path: &PathBuf, include_path: &str) -> bool {
     let include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
 
     if path.file_name() != include_pathbuf.file_name() { return false; }
@@ -287,7 +287,7 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
 
         let mut prefix = read_prefix(&prefixpath);
 
-        prefix = if prefix.len() > 0 && prefix.chars().nth(0).unwrap() != '\\' {
+        prefix = if !prefix.is_empty() && prefix.chars().nth(0).unwrap() != '\\' {
             format!("\\{}", prefix)
         } else {
             prefix
@@ -306,7 +306,7 @@ fn matches_include_path(path: &PathBuf, include_path: &String) -> bool {
     false
 }
 
-fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf> {
+fn search_directory(include_path: &str, directory: PathBuf) -> Option<PathBuf> {
     for entry in read_dir(&directory).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -314,14 +314,11 @@ fn search_directory(include_path: &String, directory: PathBuf) -> Option<PathBuf
                 continue;
             }
 
-            match search_directory(include_path, path) {
-                Some(path) => { return Some(path); }
-                None => {}
-            }
-        } else {
-            if matches_include_path(&path, include_path) {
+            if let Some(path) = search_directory(include_path, path) {
                 return Some(path);
             }
+        } else if matches_include_path(&path, include_path) {
+            return Some(path);
         }
     }
 
@@ -350,7 +347,7 @@ fn canonicalize(path: PathBuf) -> PathBuf {
     result
 }
 
-fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_paths: &Vec<PathBuf>) -> Result<PathBuf, Error> {
+fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths: &[PathBuf]) -> Result<PathBuf, Error> {
     if include_path.chars().nth(0).unwrap() != '\\' {
         let mut path = PathBuf::from(include_path.replace("\\", pathsep()));
 
@@ -374,9 +371,8 @@ fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_pat
         }
     } else {
         for search_path in search_paths {
-            match search_directory(include_path, search_path.canonicalize()?) {
-                Some(file_path) => { return Ok(file_path); },
-                None => {}
+            if let Some(file_path) = search_directory(include_path, search_path.canonicalize()?) {
+                return Ok(file_path);
             }
         }
 
@@ -387,7 +383,7 @@ fn find_include_file(include_path: &String, origin: Option<&PathBuf>, search_pat
     }
 }
 
-fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &Vec<PathBuf>) -> Result<String, Error> {
+fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &[PathBuf]) -> Result<String, Error> {
     let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
     let mut output = String::from("");
     let mut original_lineno = 1;
@@ -509,8 +505,8 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 ///
 /// assert_eq!("foo = \"abc_xyz\";", output.trim());
 /// ```
-pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(String, PreprocessInfo), Error> {
-    if input[..3].as_bytes() == &[0xef,0xbb,0xbf] {
+pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(String, PreprocessInfo), Error> {
+    if input[..3].as_bytes() == [0xef,0xbb,0xbf] {
         input = input[3..].to_string();
     }
 
@@ -536,7 +532,7 @@ pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &V
 /// `path` is the `path` to the input if it is known and is used for relative includes and error
 /// messages. `includefolders` are the folders searched for absolute includes and should usually at
 /// least include the current working directory.
-pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), Error> {
     let mut buffer = String::new();
     input.read_to_string(&mut buffer).prepend_error("Failed to read input file")?;
 

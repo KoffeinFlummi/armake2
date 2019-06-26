@@ -1,23 +1,23 @@
-use std::io::{Error, Read, Cursor, stdin, stdout};
-use std::path::{PathBuf};
-use std::fs::{File};
 use std::collections::{HashSet};
+use std::fs::{File};
+use std::io::{Error, Read, Cursor, stdin, stdout};
 use std::iter::{FromIterator};
+use std::path::{PathBuf};
 
 use crate::*;
-use crate::io::{Input, Output};
-use crate::error::*;
-use crate::config;
-use crate::preprocess;
-use crate::pbo;
-use crate::sign;
 use crate::binarize;
+use crate::config;
+use crate::error::*;
+use crate::io::{Input, Output};
+use crate::pbo;
+use crate::preprocess;
+use crate::sign;
 
 use serde::Deserialize;
 #[cfg(windows)]
 use ansi_term;
 
-pub const USAGE: &'static str = "
+pub const USAGE: &str = "
 armake2
 
 Usage:
@@ -71,7 +71,7 @@ Options:
     -h --help                   Show usage information and exit.
        --version                Print the version number and exit.
 ";
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Deserialize)]
 pub struct Args {
@@ -134,10 +134,10 @@ fn get_output(args: &Args) -> Result<Output, Error> {
 }
 
 fn run_command(args: &Args) -> Result<(), Error> {
-    let path = args.arg_source.as_ref().map(|p| PathBuf::from(p));
-    let signature = args.arg_signature.as_ref().map(|p| PathBuf::from(p));
+    let path = args.arg_source.as_ref().map(PathBuf::from);
+    let signature = args.arg_signature.as_ref().map(PathBuf::from);
 
-    let mut includefolders: Vec<PathBuf> = args.flag_include.iter().map(|x| PathBuf::from(x)).collect();
+    let mut includefolders: Vec<PathBuf> = args.flag_include.iter().map(PathBuf::from).collect();
     includefolders.push(PathBuf::from("."));
 
     if args.cmd_binarize {
@@ -149,8 +149,8 @@ fn run_command(args: &Args) -> Result<(), Error> {
     } else if args.cmd_preprocess {
         preprocess::cmd_preprocess(&mut get_input(&args)?, &mut get_output(&args)?, path, &includefolders)
     } else if args.cmd_build || args.cmd_pack {
-        let flag_privatekey = args.flag_key.as_ref().map(|p| PathBuf::from(p));
-        let flag_signature = args.flag_signature.as_ref().map(|p| PathBuf::from(p));
+        let flag_privatekey = args.flag_key.as_ref().map(PathBuf::from);
+        let flag_signature = args.flag_signature.as_ref().map(PathBuf::from);
 
         if flag_privatekey.is_some() && args.arg_target.is_none() {
             return Err(error!("Cannot sign a pbo that is piped to stdout."));

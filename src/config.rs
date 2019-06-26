@@ -1,9 +1,9 @@
 //! Functions for rapifying and derapifying Arma configs
 
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
-use std::path::PathBuf;
 use std::cmp::{min};
+use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
 use std::iter::{Sum};
+use std::path::PathBuf;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
@@ -173,7 +173,7 @@ impl ConfigArray {
 
         Ok(ConfigArray {
             is_expansion: false,
-            elements: elements
+            elements,
         })
     }
 }
@@ -201,7 +201,7 @@ impl ConfigClass {
     fn write<O: Write>(&self, mut output: &mut O, level: i32) -> Result<(), Error> {
         match &self.entries {
             Some(entries) => {
-                if level > 0 && entries.len() > 0 {
+                if level > 0 && !entries.is_empty() {
                     output.write_all(b"\n")?;
                 }
                 for (key, value) in entries {
@@ -217,7 +217,7 @@ impl ConfigClass {
                                 let parent = if c.parent == "" { String::from("") } else { format!(": {}", c.parent) };
                                 match &c.entries {
                                     Some(entries) => {
-                                        if entries.len() > 0 {
+                                        if !entries.is_empty() {
                                             output.write_all(format!("class {}{} {{", key, parent).as_bytes())?;
                                             c.write(output, level + 1)?;
                                             output.write_all(String::from("    ").repeat(level as usize).as_bytes())?;
@@ -420,10 +420,10 @@ impl ConfigClass {
         }
 
         Ok(ConfigClass {
-            parent: parent,
+            parent,
             is_external: false,
             is_deletion: false,
-            entries: Some(entries)
+            entries: Some(entries),
         })
     }
 }
@@ -480,7 +480,7 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<Config, Error> {
+    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, Error> {
         let mut buffer = String::new();
         input.read_to_string(&mut buffer).prepend_error("Failed to read input file:")?;
 
@@ -491,15 +491,16 @@ impl Config {
         let result = config_grammar::config(&preprocessed, &mut warnings).format_error(&info, &preprocessed);
 
         for w in warnings {
-            let mut location = (None, None);
 
-            if !warning_suppressed(w.2) {
+            let location = if !warning_suppressed(w.2) {
                 let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
                 let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
                 line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
 
-                location = (file, Some(line as u32));
-            }
+                (file, Some(line as u32))
+            } else {
+                (None, None)
+            };
 
             warning(w.1, w.2, location);
         }
@@ -512,7 +513,7 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<Config, Error> {
+    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, Error> {
         let mut cursor = Cursor::new(input.into_bytes());
         Self::read(&mut cursor, path, includefolders)
     }
@@ -539,7 +540,7 @@ impl Config {
 /// `path` is the path to the input if it is known and is used for relative includes and error
 /// messages. `includefolders` are the folders searched for absolute includes and should usually at
 /// least include the current working directory.
-pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &Vec<PathBuf>) -> Result<(), Error> {
+pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), Error> {
     let config = Config::read(input, path, includefolders)?;
 
     config.write_rapified(output).prepend_error("Failed to write rapified config:")?;
