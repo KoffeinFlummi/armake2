@@ -157,7 +157,11 @@ impl PBO {
         }
 
         for path in file_list {
-            let relative = path.strip_prefix(&directory).unwrap();
+            let mut relative = path.strip_prefix(&directory).unwrap().to_path_buf();
+            if binarize && relative.file_name() == Some(OsStr::new("config.cpp")) {
+                relative = relative.with_file_name("config.bin");
+            }
+
             let mut name: String = relative.to_str().unwrap().replace("/", "\\");
             let is_binarizable = Regex::new(".(rtm|p3d)$").unwrap().is_match(&name);
 
@@ -180,10 +184,9 @@ impl PBO {
                 }
             } else if binarize && vec!["cpp", "rvmat"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
                 let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
-
                 let cursor = config.to_cursor()?;
 
-                files.insert(if name == "config.cpp" { "config.bin".to_string() } else { name }, cursor);
+                files.insert(name, cursor);
             } else if cfg!(windows) && binarize && is_binarizable {
                 let cursor = binarize::binarize(&path).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
 
