@@ -80,7 +80,7 @@ sl_comment -> u32 = "//" (!newline .)* &newline {
     0
 }
 
-ml_comment -> u32 = "/*" content:$((!"*/" (newline / .))*) "*/" {
+ml_comment -> u32 = [ \t]* "/*" content:$((!"*/" (newline / .))*) "*/" {
     content.chars().filter(|c| c == &'\n').count() as u32
 }
 
@@ -99,7 +99,9 @@ pub tokens -> Vec<Token> = t:(token*) {
 
 // @todo: comments after directives (same line)
 line -> Line =
-    [ \t]* d:directive [ \t]* { Line::DirectiveLine(d) } /
+    [ \t]* d:directive cmts:(comment_token)* [ \t]* {
+        Line::DirectiveLine(d, cmts.iter().sum())
+    } /
     [ \t]* t:tokens { Line::TokenLine(t) }
 
 pub file -> Vec<Line> = lines:(line ** (newline)) !. {

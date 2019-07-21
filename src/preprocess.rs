@@ -71,7 +71,7 @@ pub enum Token {
 #[derive(Debug)]
 pub enum Line {
     /// Directive line
-    DirectiveLine(Directive),
+    DirectiveLine(Directive, u32),
     /// Non-directive line of tokens
     TokenLine(Vec<Token>),
 }
@@ -392,68 +392,72 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 
     for line in lines {
         match line {
-            Line::DirectiveLine(dir) => match dir {
-                Directive::IncludeDirective(path) => {
-                    if level > level_true { continue; }
+            Line::DirectiveLine(dir, newlines) => {
+                original_lineno += newlines;
 
-                    //let import_tree = &mut info.import_tree;
-                    //let includer = import_tree.get(&path);
-                    //if let Some(path) = includer {
-                    //    // @todo: complain
-                    //}
+                match dir {
+                    Directive::IncludeDirective(path) => {
+                        if level > level_true { continue; }
 
-                    let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
+                        //let import_tree = &mut info.import_tree;
+                        //let includer = import_tree.get(&path);
+                        //if let Some(path) = includer {
+                        //    // @todo: complain
+                        //}
 
-                    info.import_stack.push(file_path.clone());
+                        let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
 
-                    let mut content = String::new();
-                    File::open(&file_path)?.read_to_string(&mut content)?;
-                    let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
+                        info.import_stack.push(file_path.clone());
 
-                    info.import_stack.pop();
+                        let mut content = String::new();
+                        File::open(&file_path)?.read_to_string(&mut content)?;
+                        let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
 
-                    output += &result;
-                },
-                Directive::DefineDirective(def) => {
-                    original_lineno += u32::sum(def.value.iter().map(|t| match t {
-                        Token::NewlineToken(_s, n) => *n,
-                        Token::CommentToken(n) => *n,
-                        _ => 0
-                    }));
+                        info.import_stack.pop();
 
-                    if level > level_true { continue; }
+                        output += &result;
+                    },
+                    Directive::DefineDirective(def) => {
+                        original_lineno += u32::sum(def.value.iter().map(|t| match t {
+                            Token::NewlineToken(_s, n) => *n,
+                            Token::CommentToken(n) => *n,
+                            _ => 0
+                        }));
 
-                    if definition_map.remove(&def.name).is_some() {
-                        // @todo: warn about redefine
+                        if level > level_true { continue; }
+
+                        if definition_map.remove(&def.name).is_some() {
+                            // @todo: warn about redefine
+                        }
+
+                        definition_map.insert(def.name.clone(), def);
                     }
+                    Directive::UndefDirective(name) => {
+                        if level > level_true { continue; }
 
-                    definition_map.insert(def.name.clone(), def);
-                }
-                Directive::UndefDirective(name) => {
-                    if level > level_true { continue; }
-
-                    definition_map.remove(&name);
-                }
-                Directive::IfDefDirective(name) => {
-                    level_true += if level_true == level && definition_map.contains_key(&name) { 1 } else { 0 };
-                    level += 1;
-                }
-                Directive::IfNDefDirective(name) => {
-                    level_true += if level_true == level && !definition_map.contains_key(&name) { 1 } else { 0 };
-                    level += 1;
-                }
-                Directive::ElseDirective => {
-                    if level_true + 1 == level {
-                        level_true = level;
-                    } else if level_true == level {
-                        level_true -= 1;
+                        definition_map.remove(&name);
                     }
-                }
-                Directive::EndIfDirective => {
-                    assert!(level > 0);
-                    level -= 1;
-                    if level_true > level {
-                        level_true -= 1;
+                    Directive::IfDefDirective(name) => {
+                        level_true += if level_true == level && definition_map.contains_key(&name) { 1 } else { 0 };
+                        level += 1;
+                    }
+                    Directive::IfNDefDirective(name) => {
+                        level_true += if level_true == level && !definition_map.contains_key(&name) { 1 } else { 0 };
+                        level += 1;
+                    }
+                    Directive::ElseDirective => {
+                        if level_true + 1 == level {
+                            level_true = level;
+                        } else if level_true == level {
+                            level_true -= 1;
+                        }
+                    }
+                    Directive::EndIfDirective => {
+                        assert!(level > 0);
+                        level -= 1;
+                        if level_true > level {
+                            level_true -= 1;
+                        }
                     }
                 }
             },

@@ -103,3 +103,22 @@ fn test_proprocess_bom() {
 
     assert_eq!("blub", output.trim());
 }
+
+#[test]
+fn test_preprocess_lineorigins() {
+    let input = String::from("\
+#define TEST \"test\"/* foo
+
+bar */
+class test\\
+{
+    foo[] = {1,2,3, \\
+    4};
+    bar[] = {1,2,3, \\
+    4}jashdlasd;
+};\n");
+
+    let (_, info) = preprocess(input, None, &Vec::new()).unwrap();
+    assert_eq!(5, info.line_origins.len());
+    assert_eq!(8, info.line_origins[2].0);
+}
