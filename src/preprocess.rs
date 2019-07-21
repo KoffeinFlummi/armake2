@@ -462,8 +462,11 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                 let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:")?;
 
                 let (mut result, newlines) = Token::concat(&resolved);
-                result = result.replace("\r\n", "\n").replace("\\\n", "");
+                result = result.replace("\r\n", "\n");
                 original_lineno += newlines;
+
+                let before = result.len();
+                result = result.replace("\\\n", "");
 
                 if level > level_true { continue; }
 
@@ -471,6 +474,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                 output += "\n";
 
                 info.line_origins.push((original_lineno, origin.clone()));
+                original_lineno += (before - result.len()) as u32 / 2;
             }
         }
         original_lineno += 1;
