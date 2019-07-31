@@ -4,7 +4,7 @@ version = "0.3.0"
 description = "Arma 3 modding tools"
 license = "GPL-2.0-or-later"
 categories = ["command-line-utilities"]
-authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>"]
+authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>", "Brett Mayson <brett@mayson.io>"]
 homepage = "https://github.com/KoffeinFlummi/armake2"
 repository = "https://github.com/KoffeinFlummi/armake2"
 build = "build.rs"
@@ -13,6 +13,10 @@ edition = "2018"
 
 [lib]
 name = "armake2"
+
+[features]
+default = ["signing"]
+signing = ["openssl"]
 
 [[bench]]
 name = "preprocess"
@@ -23,18 +27,22 @@ name = "config"
 harness = false
 
 [dependencies]
-colored = "1.6"
-time = "0.1"
 byteorder = "1"
+clap = "2.33"
+rust-crypto = "0.2"
+colored = "1.8"
 docopt = "1"
-serde = { version = "1.0", features = ["derive"] }
-openssl = "0.10"
-linked-hash-map = "0.5.1"
+hashbrown = "0.5"
+linked-hash-map = "0.5.2"
 regex = "1"
+serde = { version = "1.0", features = ["derive"] }
+time = "0.1"
+
+openssl = {version = "0.10", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-ansi_term = "0.11"
-winreg = "0.6.0"
+ansi_term = "0.12"
+winreg = "0.6"
 
 [build-dependencies]
 peg = "0.5"

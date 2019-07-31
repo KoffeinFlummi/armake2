@@ -1,7 +1,7 @@
 //! Functions for rapifying and derapifying Arma configs
 
 use std::cmp::{min};
-use std::io::{Read, Seek, Write, SeekFrom, Error, Cursor, BufReader, BufWriter};
+use std::io::{Read, Seek, Write, SeekFrom, Cursor, BufReader, BufWriter};
 use std::iter::{Sum};
 use std::path::PathBuf;
 
@@ -9,8 +9,10 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::*;
 use crate::io::*;
-use crate::error::*;
 use crate::preprocess::*;
+
+use crate::ArmakeError;
+use crate::error::ConfigParseError;
 
 pub mod config_grammar {
     #![allow(missing_docs)]
@@ -36,16 +38,16 @@ pub mod config_grammar {
 /// ```
 #[derive(Debug)]
 pub struct Config {
-    root_body: ConfigClass,
+    pub root_body: ConfigClass,
 }
 
 /// Config class
 #[derive(Debug)]
 pub struct ConfigClass {
-    parent: String,
-    is_external: bool,
-    is_deletion: bool,
-    entries: Option<Vec<(String, ConfigEntry)>>,
+    pub parent: String,
+    pub is_external: bool,
+    pub is_deletion: bool,
+    pub entries: Option<Vec<(String, ConfigEntry)>>,
 }
 
 /// Config entry
@@ -66,8 +68,8 @@ pub enum ConfigEntry {
 /// Config array
 #[derive(Debug)]
 pub struct ConfigArray {
-    is_expansion: bool,
-    elements: Vec<ConfigArrayElement>,
+    pub is_expansion: bool,
+    pub elements: Vec<ConfigArrayElement>,
 }
 
 /// Config array element
@@ -84,7 +86,7 @@ pub enum ConfigArrayElement {
 }
 
 impl ConfigArrayElement {
-    fn rapified_length(&self) -> usize {
+    pub fn rapified_length(&self) -> usize {
         match self {
             ConfigArrayElement::StringElement(s) => s.len() + 2,
             ConfigArrayElement::FloatElement(_f) => 5,
@@ -96,7 +98,7 @@ impl ConfigArrayElement {
 }
 
 impl ConfigArray {
-    fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
+    pub fn write<O: Write>(&self, output: &mut O) -> Result<(), ArmakeError> {
         output.write_all(b"{")?;
         for (key, value) in self.elements.iter().enumerate() {
             match value {
@@ -121,7 +123,7 @@ impl ConfigArray {
         Ok(())
     }
 
-    fn write_rapified<O: Write>(&self, output: &mut O) -> Result<usize, Error> {
+    pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<usize, ArmakeError> {
         let mut written = output.write_compressed_int(self.elements.len() as u32)?;
 
         for element in &self.elements {
@@ -151,7 +153,7 @@ impl ConfigArray {
         Ok(written)
     }
 
-    fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<ConfigArray, Error> {
+    pub fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<ConfigArray, ArmakeError> {
         let num_elements: u32 = input.read_compressed_int()?;
         let mut elements: Vec<ConfigArrayElement> = Vec::with_capacity(num_elements as usize);
 
@@ -180,7 +182,7 @@ impl ConfigArray {
 
 impl ConfigEntry {
     // without the name
-    fn rapified_length(&self) -> usize {
+    pub fn rapified_length(&self) -> usize {
         match self {
             ConfigEntry::StringEntry(s) => s.len() + 3,
             ConfigEntry::FloatEntry(_f) => 6,
@@ -198,7 +200,7 @@ impl ConfigEntry {
 }
 
 impl ConfigClass {
-    fn write<O: Write>(&self, mut output: &mut O, level: i32) -> Result<(), Error> {
+    pub fn write<O: Write>(&self, mut output: &mut O, level: i32) -> Result<(), ArmakeError> {
         match &self.entries {
             Some(entries) => {
                 if level > 0 && !entries.is_empty() {
@@ -259,7 +261,7 @@ impl ConfigClass {
         Ok(())
     }
 
-    fn rapified_length(&self) -> usize {
+    pub fn rapified_length(&self) -> usize {
         match &self.entries {
             Some(entries) => self.parent.len() + 1 +
                 compressed_int_len(entries.len() as u32) +
@@ -273,7 +275,7 @@ impl ConfigClass {
         }
     }
 
-    fn write_rapified<O: Write>(&self, output: &mut O, offset: usize) -> Result<usize, Error> {
+    pub fn write_rapified<O: Write>(&self, output: &mut O, offset: usize) -> Result<usize, ArmakeError> {
         let mut written = 0;
 
         match &self.entries {
@@ -331,8 +333,10 @@ impl ConfigClass {
 
                                 let buffer: Box<[u8]> = vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-                                class_offset += c.write_rapified(&mut cursor, class_offset).prepend_error(format!("Failed to rapify {}:",name))?;
-
+                                class_offset += c.write_rapified(&mut cursor, class_offset).map_err(|source| ArmakeError::MESSAGE(
+                                    format!("Failed to rapify {}", name),
+                                    Box::new(source),
+                                ))?;
                                 class_bodies.push(cursor);
                             }
                         }
@@ -353,7 +357,7 @@ impl ConfigClass {
         Ok(written)
     }
 
-    fn read_rapified<I: Read + Seek>(input: &mut I, level: u32) -> Result<ConfigClass, Error> {
+    pub fn read_rapified<I: Read + Seek>(input: &mut I, level: u32) -> Result<ConfigClass, ArmakeError> {
         let mut fp = 0;
         if level == 0 {
             input.seek(SeekFrom::Start(16))?;
@@ -374,8 +378,7 @@ impl ConfigClass {
             if entry_type == 0 {
                 let name = input.read_cstring()?;
 
-                let class_entry = ConfigClass::read_rapified(input, level + 1)
-                    .prepend_error(format!("Failed to read rapified class \"{}\":", name))?;
+                let class_entry = ConfigClass::read_rapified(input, level + 1)?;
                 entries.push((name, ConfigEntry::ClassEntry(class_entry)));
             } else if entry_type == 1 {
                 let subtype: u8 = input.bytes().next().unwrap()?;
@@ -396,7 +399,7 @@ impl ConfigClass {
                 }
 
                 let name = input.read_cstring()?;
-                let mut array = ConfigArray::read_rapified(input).prepend_error("Failed to read rapified array:")?;
+                let mut array = ConfigArray::read_rapified(input)?;
                 array.is_expansion = entry_type == 5;
 
                 entries.push((name.clone(), ConfigEntry::ArrayEntry(array)));
@@ -430,12 +433,12 @@ impl ConfigClass {
 
 impl Config {
     /// Writes the config (unrapified) to the output.
-    pub fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
+    pub fn write<O: Write>(&self, output: &mut O) -> Result<(), ArmakeError> {
         self.root_body.write(output, 0)
     }
 
     /// Returns the unrapified config as a string.
-    pub fn to_string(&self) -> Result<String, Error> {
+    pub fn to_string(&self) -> Result<String, ArmakeError> {
         let buffer = Vec::new();
         let mut cursor: Cursor<Vec<u8>> = Cursor::new(buffer);
         self.write(&mut cursor)?;
@@ -444,7 +447,7 @@ impl Config {
     }
 
     /// Writes the rapified config to the output.
-    pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<(), Error> {
+    pub fn write_rapified<O: Write>(&self, output: &mut O) -> Result<(), ArmakeError> {
         let mut writer = BufWriter::new(output);
 
         writer.write_all(b"\0raP")?;
@@ -452,7 +455,7 @@ impl Config {
 
         let buffer: Box<[u8]> = vec![0; self.root_body.rapified_length()].into_boxed_slice();
         let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-        self.root_body.write_rapified(&mut cursor, 16).prepend_error("Failed to rapify root class:")?;
+        self.root_body.write_rapified(&mut cursor, 16)?;
 
         let enum_offset: u32 = 16 + cursor.get_ref().len() as u32;
         writer.write_u32::<LittleEndian>(enum_offset)?;
@@ -465,7 +468,7 @@ impl Config {
     }
 
     /// Returns the rapified config as a `Cursor`.
-    pub fn to_cursor(&self) -> Result<Cursor<Box<[u8]>>, Error> {
+    pub fn to_cursor(&self) -> Result<Cursor<Box<[u8]>>, ArmakeError> {
         let len = self.root_body.rapified_length() + 20;
 
         let buffer: Box<[u8]> = vec![0; len].into_boxed_slice();
@@ -480,32 +483,36 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, Error> {
+    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, ArmakeError> {
         let mut buffer = String::new();
-        input.read_to_string(&mut buffer).prepend_error("Failed to read input file:")?;
+        input.read_to_string(&mut buffer)?;
 
-        let (preprocessed, info) = preprocess(buffer, path, includefolders).prepend_error("Failed to preprocess config:")?;
+        let (preprocessed, info) = preprocess(buffer.clone(), path.clone(), includefolders)?;
 
         let mut warnings: Vec<(usize, String, Option<&'static str>)> = Vec::new();
 
-        let result = config_grammar::config(&preprocessed, &mut warnings).format_error(&info, &preprocessed);
+        let result = config_grammar::config(&preprocessed, &mut warnings).map_err(|source| ArmakeError::CONFIG(ConfigParseError {
+            path: Some(path.unwrap_or_else(|| PathBuf::new()).to_string_lossy().to_string()),
+            message: buffer,
+            source,
+        }))?;
 
-        for w in warnings {
+        // for w in warnings {
 
-            let location = if !warning_suppressed(w.2) {
-                let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
-                let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
-                line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
+        //     let location = if !warning_suppressed(w.2) {
+        //         let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
+        //         let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
+        //         line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
 
-                (file, Some(line as u32))
-            } else {
-                (None, None)
-            };
+        //         (file, Some(line as u32))
+        //     } else {
+        //         (None, None)
+        //     };
 
-            warning(w.1, w.2, location);
-        }
+        //     warning(w.1, w.2, location);
+        // }
 
-        result
+        Ok(result)
     }
 
     /// Preprocesses and parses input string.
@@ -513,13 +520,13 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, Error> {
+    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, ArmakeError> {
         let mut cursor = Cursor::new(input.into_bytes());
         Self::read(&mut cursor, path, includefolders)
     }
 
     /// Reads the rapified config from input.
-    pub fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<Config, Error> {
+    pub fn read_rapified<I: Read + Seek>(input: &mut I) -> Result<Config, ArmakeError> {
         let mut reader = BufReader::new(input);
 
         let mut buffer = [0; 4];
@@ -533,26 +540,4 @@ impl Config {
             root_body: ConfigClass::read_rapified(&mut reader, 0)?
         })
     }
-}
-
-/// Reads input, preprocesses and rapifies it and writes to output.
-///
-/// `path` is the path to the input if it is known and is used for relative includes and error
-/// messages. `includefolders` are the folders searched for absolute includes and should usually at
-/// least include the current working directory.
-pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), Error> {
-    let config = Config::read(input, path, includefolders)?;
-
-    config.write_rapified(output).prepend_error("Failed to write rapified config:")?;
-
-    Ok(())
-}
-
-/// Reads input, derapifies it and writes to output.
-pub fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), Error> {
-    let config = Config::read_rapified(input).prepend_error("Failed to read rapified config:")?;
-
-    config.write(output).prepend_error("Failed to derapify config:")?;
-
-    Ok(())
 }

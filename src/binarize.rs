@@ -2,7 +2,7 @@
 
 use std::env::{var, temp_dir};
 use std::fs::{File, create_dir_all, remove_dir_all};
-use std::io::{Read, Write, Cursor, Error};
+use std::io::{Cursor, Read};
 use std::path::{PathBuf};
 use std::process::{Command, Stdio};
 
@@ -11,11 +11,13 @@ use winreg::RegKey;
 #[cfg(windows)]
 use winreg::enums::*;
 
-use crate::*;
-use crate::error::*;
+use crate::ArmakeError;
+
+use crate::error;
+use crate::error::{IOPathError};
 
 #[cfg(windows)]
-fn find_binarize_exe() -> Result<PathBuf, Error> {
+pub fn find_binarize_exe() -> Result<PathBuf, ArmakeError> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let binarize = hkcu.open_subkey("Software\\Bohemia Interactive\\binarize")?;
     let value: String = binarize.get_value("path")?;
@@ -24,11 +26,11 @@ fn find_binarize_exe() -> Result<PathBuf, Error> {
 }
 
 #[cfg(unix)]
-fn find_binarize_exe() -> Result<PathBuf, Error> {
+pub fn find_binarize_exe() -> Result<PathBuf, ArmakeError> {
     unreachable!();
 }
 
-fn create_temp_directory(name: &str) -> Result<PathBuf, Error> {
+fn create_temp_directory(name: &str) -> Result<PathBuf, ArmakeError> {
     let dir = temp_dir();
     let mut i = 0;
 
@@ -46,19 +48,19 @@ fn create_temp_directory(name: &str) -> Result<PathBuf, Error> {
 }
 
 /// Binarizes the given path with BI's binarize.exe (Only available on Windows).
-pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
+pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, ArmakeError> {
     if !cfg!(windows) {
         return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
     }
 
-    let binarize_exe = find_binarize_exe().prepend_error("Failed to find BI's binarize.exe:")?;
+    let binarize_exe = find_binarize_exe()?;
     if !binarize_exe.exists() {
         return Err(error!("BI's binarize.exe found in registry, but doesn't exist."));
     }
 
     let input_dir = PathBuf::from(input.parent().unwrap());
     let name = input.file_name().unwrap().to_str().unwrap().to_string();
-    let tempdir = create_temp_directory(&name).prepend_error("Failed to create tempfolder:")?;
+    let tempdir = create_temp_directory(&name)?;
 
     let piped = var("BIOUTPUT").unwrap_or_else(|_| "0".to_string()) == "1";
 
@@ -66,7 +68,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
         .args(&["-norecurse", "-always", "-silent", "-maxProcesses=0", input_dir.to_str().unwrap(), tempdir.to_str().unwrap(), input.file_name().unwrap().to_str().unwrap()])
         .stdout(if piped { Stdio::inherit() } else { Stdio::null() })
         .stderr(if piped { Stdio::inherit() } else { Stdio::null() })
-        .output().unwrap();
+        .output()?;
 
     if !binarize_output.status.success() {
         let msg = match binarize_output.status.code() {
@@ -82,24 +84,19 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
     let mut buffer: Vec<u8> = Vec::new();
 
     {
-        let mut file = File::open(result_path).prepend_error("Failed to open binarize.exe output:")?;
-        file.read_to_end(&mut buffer).prepend_error("Failed to read binarize.exe output:")?;
+        let mut file = File::open(&result_path).map_err(|source| ArmakeError::IOPath(IOPathError {
+            source,
+            path: result_path,
+            message: Some("Failed to open binarize.exe output".to_owned()),
+        }))?;
+        file.read_to_end(&mut buffer).or_else(|_| Err(error!("Failed to read binarize.exe output")))?;
     }
 
-    remove_dir_all(&tempdir).prepend_error("Failed to remove temp directory:")?;
+    remove_dir_all(&tempdir).map_err(|source| ArmakeError::IOPath(IOPathError {
+        source,
+        path: tempdir,
+        message: Some("Failed to remove temp directory".to_owned()),
+    }))?;
 
     Ok(Cursor::new(buffer.into_boxed_slice()))
-}
-
-/// Binarizes the given path using BI's binarize.exe (on Windows) and writes it to the output.
-pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), Error> {
-    if !cfg!(windows) {
-        return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
-    }
-
-    let cursor = binarize(&input)?;
-    let mut file = File::create(output).prepend_error("Failed to open output:")?;
-    file.write_all(cursor.get_ref()).prepend_error("Failed to write result to file:")?;
-
-    Ok(())
 }

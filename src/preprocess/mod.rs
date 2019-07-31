@@ -1,14 +1,17 @@
 //! Functions for preprocessing Arma configs and scripts
 
 use std::clone::Clone;
-use std::collections::HashMap;
-use std::env::current_dir;
-use std::fs::{File, read_dir};
-use std::io::{Read, Write, Error};
+use std::fs::File;
+use std::io::{Read, Write};
 use std::iter::{Sum};
-use std::path::{Path, PathBuf, Component};
+use std::path::PathBuf;
 
-use crate::error::*;
+use hashbrown::HashMap;
+
+use crate::ArmakeError;
+use crate::error::{PreprocessError, PreprocessParseError};
+
+mod fs;
 
 pub mod preprocess_grammar {
     #![allow(missing_docs)]
@@ -120,7 +123,7 @@ impl Clone for Token {
 }
 
 impl Definition {
-    fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &[Definition]) -> Result<Option<Vec<Token>>, Error> {
+    fn value(&self, arguments: &Option<Vec<String>>, def_map: &HashMap<String,Definition>, stack: &[Definition]) -> Result<Option<Vec<Token>>, ArmakeError> {
         let params = self.parameters.clone().unwrap_or_default();
         let args = arguments.clone().unwrap_or_default();
 
@@ -168,7 +171,7 @@ impl Definition {
 }
 
 impl Macro {
-    fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
+    fn resolve_pseudoargs(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, ArmakeError> {
         let mut tokens: Vec<Token> = Vec::new();
         tokens.push(Token::RegularToken(self.name.clone()));
 
@@ -187,7 +190,7 @@ impl Macro {
         Ok(tokens)
     }
 
-    fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
+    fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, ArmakeError> {
         match def_map.get(&self.name) {
             Some(def) => {
                 let value = def.value(&self.arguments, def_map, stack)?;
@@ -213,7 +216,7 @@ impl Macro {
         }
     }
 
-    fn resolve_all(tokens: &[Token], def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
+    fn resolve_all(tokens: &[Token], def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, ArmakeError> {
         let mut result: Vec<Token> = Vec::new();
 
         for token in tokens {
@@ -262,129 +265,17 @@ impl Token {
     }
 }
 
-fn read_prefix(prefix_path: &Path) -> String {
-    let mut content = String::new();
-    File::open(prefix_path).unwrap().read_to_string(&mut content).unwrap();
-
-    content.lines().nth(0).unwrap().to_string()
-}
-
 /// Returns the path seperator used on the current operating system
 pub fn pathsep() -> &'static str {
     if cfg!(windows) { "\\" } else { "/" }
 }
 
-fn matches_include_path(path: &PathBuf, include_path: &str) -> bool {
-    let include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
-
-    if path.file_name() != include_pathbuf.file_name() { return false; }
-
-    for parent in path.ancestors() {
-        if parent.is_file() { continue; }
-
-        let prefixpath = parent.join("$PBOPREFIX$");
-        if !prefixpath.is_file() { continue; }
-
-        let mut prefix = read_prefix(&prefixpath);
-
-        prefix = if !prefix.is_empty() && prefix.chars().nth(0).unwrap() != '\\' {
-            format!("\\{}", prefix)
-        } else {
-            prefix
-        };
-
-        let prefix_pathbuf = PathBuf::from(prefix.replace("\\", pathsep()));
-
-        let relative = path.strip_prefix(parent).unwrap();
-        let test_path = prefix_pathbuf.join(relative);
-
-        if test_path == include_pathbuf {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn search_directory(include_path: &str, directory: PathBuf) -> Option<PathBuf> {
-    for entry in read_dir(&directory).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            if path.file_name().unwrap() == ".git" {
-                continue;
-            }
-
-            if let Some(path) = search_directory(include_path, path) {
-                return Some(path);
-            }
-        } else if matches_include_path(&path, include_path) {
-            return Some(path);
-        }
-    }
-
-    let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", pathsep());
-    let direct_pathbuf = PathBuf::from(direct_path);
-
-    if direct_pathbuf.is_file() {
-        return Some(direct_pathbuf);
-    }
-
-    None
-}
-
-fn canonicalize(path: PathBuf) -> PathBuf {
-    let mut result = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                result.pop();
-            },
-            _ => {
-                result.push(component);
-            }
-        }
-    }
-    result
-}
-
-fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths: &[PathBuf]) -> Result<PathBuf, Error> {
-    if include_path.chars().nth(0).unwrap() != '\\' {
-        let mut path = PathBuf::from(include_path.replace("\\", pathsep()));
-
-        if let Some(origin_path) = origin {
-            let absolute = PathBuf::from(&origin_path).canonicalize()?;
-            let origin_dir = absolute.parent().unwrap();
-            path = origin_dir.join(path);
-        } else {
-            path = current_dir()?.join(path);
-        }
-
-        let absolute = canonicalize(path);
-
-        if !absolute.is_file() {
-            match origin {
-                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-                None => Err(error!("Included file \"{}\" not found.", include_path))
-            }
-        } else {
-            Ok(absolute)
-        }
-    } else {
-        for search_path in search_paths {
-            if let Some(file_path) = search_directory(include_path, search_path.canonicalize()?) {
-                return Ok(file_path);
-            }
-        }
-
-        match origin {
-            Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-            None => Err(error!("Included file \"{}\" not found.", include_path))
-        }
-    }
-}
-
-fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &[PathBuf]) -> Result<String, Error> {
-    let lines = preprocess_grammar::file(&input).format_error(&origin, &input)?;
+fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &[PathBuf]) -> Result<String, ArmakeError> {
+    let lines = preprocess_grammar::file(&input).map_err(|source| ArmakeError::PARSE(PreprocessParseError {
+        path: Some(origin.clone().unwrap_or_else(PathBuf::new).to_string_lossy().to_string()),
+        message: input,
+        source,
+    }))?;
     let mut output = String::from("");
     let mut original_lineno = 1;
     let mut level = 0;
@@ -405,13 +296,17 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                         //    // @todo: complain
                         //}
 
-                        let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
+                        let file_path = fs::find_include_file(&path, origin.as_ref(), includefolders)?;
 
                         info.import_stack.push(file_path.clone());
 
                         let mut content = String::new();
                         File::open(&file_path)?.read_to_string(&mut content)?;
-                        let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).prepend_error(format!("Failed to preprocess include \"{}\":", path))?;
+                        let result = preprocess_rec(content, Some(file_path), definition_map, info, includefolders).map_err(|e| ArmakeError::PREPROCESS(PreprocessError {
+                            message: "Failed to process include".to_string(),
+                            path: Some(path),
+                            source: Box::new(e),
+                        }))?;
 
                         info.import_stack.pop();
 
@@ -463,7 +358,11 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
             },
             Line::TokenLine(tokens) => {
                 let stack: Vec<Definition> = Vec::new();
-                let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:")?;
+                let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).map_err(|e| ArmakeError::PREPROCESS(PreprocessError {
+                    message: "Failed to process macros".to_string(),
+                    path: None,
+                    source: Box::new(e),
+                }))?;
 
                 let (mut result, newlines) = Token::concat(&resolved);
                 result = result.replace("\r\n", "\n");
@@ -513,7 +412,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 ///
 /// assert_eq!("foo = \"abc_xyz\";", output.trim());
 /// ```
-pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(String, PreprocessInfo), Error> {
+pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(String, PreprocessInfo), ArmakeError> {
     if input[..3].as_bytes() == [0xef,0xbb,0xbf] {
         input = input[3..].to_string();
     }
@@ -540,13 +439,13 @@ pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[
 /// `path` is the `path` to the input if it is known and is used for relative includes and error
 /// messages. `includefolders` are the folders searched for absolute includes and should usually at
 /// least include the current working directory.
-pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), Error> {
+pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
     let mut buffer = String::new();
-    input.read_to_string(&mut buffer).prepend_error("Failed to read input file")?;
+    input.read_to_string(&mut buffer)?;
 
     let (result, _) = preprocess(buffer, path, includefolders)?;
 
-    output.write_all(result.as_bytes()).prepend_error("Failed to write output")?;
+    output.write_all(result.as_bytes())?;
 
     Ok(())
 }

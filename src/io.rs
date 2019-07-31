@@ -2,6 +2,9 @@ use std::fs::{File};
 use std::io;
 use std::io::{Read, Seek, Write, Stdout, Cursor};
 
+#[cfg(feature = "signing")]
+use openssl::bn::BigNum;
+
 pub enum Input {
     File(File),
     Cursor(Cursor<Box<[u8]>>),
@@ -85,6 +88,8 @@ impl<T: Read> ReadExt for T {
 pub trait WriteExt: Write {
     fn write_cstring<S: AsRef<[u8]>>(&mut self, s: S) -> io::Result<()>;
     fn write_compressed_int(&mut self, x: u32) -> io::Result<usize>;
+    #[cfg(feature = "signing")]
+    fn write_bignum(&mut self, bn: &BigNum, size: usize) -> io::Result<()>;
 }
 
 impl<T: Write> WriteExt for T {
@@ -107,6 +112,16 @@ impl<T: Write> WriteExt for T {
 
         self.write_all(&[temp as u8])?;
         Ok(len + 1)
+    }
+
+    #[cfg(feature = "signing")]
+    fn write_bignum(&mut self, bn: &BigNum, size: usize) -> io::Result<()> {
+        let mut vec: Vec<u8> = bn.to_vec();
+        vec = vec.iter().rev().cloned().collect();
+        vec.resize(size, 0);
+
+        self.write_all(&vec)?;
+        Ok(())
     }
 }
 
