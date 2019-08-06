@@ -1,6 +1,5 @@
 //! Functions for rapifying and derapifying Arma configs
 
-use std::cmp::{min};
 use std::io::{Read, Seek, Write, SeekFrom, Cursor, BufReader, BufWriter};
 use std::iter::{Sum};
 use std::path::PathBuf;
