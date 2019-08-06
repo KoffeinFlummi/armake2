@@ -33,18 +33,16 @@ impl Unpack {
 }
 
 impl Command for Unpack {
-    fn register(&self) -> (&str, clap::App) {
-        ("unpack",
-            clap::SubCommand::with_name("unpack")
-                .about("Unpack a PBO into a folder")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source PBO file")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Output folder")
-                    .required(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("unpack")
+            .about("Unpack a PBO into a folder")
+            .arg(clap::Arg::with_name("source")
+                .help("Source PBO file")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Output folder")
+                .required(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

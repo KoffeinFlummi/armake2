@@ -21,22 +21,20 @@ impl Rapify {
 
 
 impl Command for Rapify {
-    fn register(&self) -> (&str, clap::App) {
-        ("rapify",
-            clap::SubCommand::with_name("rapify")
-                .about("Preprocess and rapify a config file")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source file")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Location to write file")
-                ).arg(clap::Arg::with_name("include")
-                    .help("Include folder")
-                    .short("i")
-                    .multiple(true)
-                    .takes_value(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("rapify")
+            .about("Preprocess and rapify a config file")
+            .arg(clap::Arg::with_name("source")
+                .help("Source file")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Location to write file")
+            ).arg(clap::Arg::with_name("include")
+                .help("Include folder")
+                .short("i")
+                .multiple(true)
+                .takes_value(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

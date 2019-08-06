@@ -2,7 +2,7 @@
 
 use std::clone::Clone;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::iter::{Sum};
 use std::path::PathBuf;
 
@@ -265,11 +265,6 @@ impl Token {
     }
 }
 
-/// Returns the path seperator used on the current operating system
-pub fn pathsep() -> &'static str {
-    if cfg!(windows) { "\\" } else { "/" }
-}
-
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &[PathBuf]) -> Result<String, ArmakeError> {
     let lines = preprocess_grammar::file(&input).map_err(|source| ArmakeError::PARSE(PreprocessParseError {
         path: Some(origin.clone().unwrap_or_else(PathBuf::new).to_string_lossy().to_string()),
@@ -432,20 +427,4 @@ pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[
         Ok(result) => Ok((result, info)),
         Err(e) => Err(e)
     }
-}
-
-/// Reads input, preprocesses it and writes to output.
-///
-/// `path` is the `path` to the input if it is known and is used for relative includes and error
-/// messages. `includefolders` are the folders searched for absolute includes and should usually at
-/// least include the current working directory.
-pub fn cmd_preprocess<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
-    let mut buffer = String::new();
-    input.read_to_string(&mut buffer)?;
-
-    let (result, _) = preprocess(buffer, path, includefolders)?;
-
-    output.write_all(result.as_bytes())?;
-
-    Ok(())
 }

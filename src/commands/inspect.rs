@@ -29,15 +29,13 @@ impl Inspect {
 }
 
 impl Command for Inspect {
-    fn register(&self) -> (&str, clap::App) {
-        ("inspect",
-            clap::SubCommand::with_name("inspect")
-                .about("Inspect a PBO and list contained files")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source file")
-                    .required(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("inspect")
+            .about("Inspect a PBO and list contained files")
+            .arg(clap::Arg::with_name("source")
+                .help("Source file")
+                .required(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

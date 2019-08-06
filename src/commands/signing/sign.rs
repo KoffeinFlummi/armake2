@@ -26,20 +26,18 @@ impl Sign {
 }
 
 impl Command for Sign {
-    fn register(&self) -> (&str, clap::App) {
-        ("sign",
-            clap::SubCommand::with_name("sign")
-                .about("Sign a PBO with the given private key")
-                .arg(clap::Arg::with_name("privatekey")
-                    .help("Private key (.biprivatekey)")
-                    .required(true)
-                ).arg(clap::Arg::with_name("pbo")
-                    .help("PBO to sign")
-                    .required(true)
-                ).arg(clap::Arg::with_name("signature")
-                    .help("Filename of the output signature file")
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("sign")
+            .about("Sign a PBO with the given private key")
+            .arg(clap::Arg::with_name("privatekey")
+                .help("Private key (.biprivatekey)")
+                .required(true)
+            ).arg(clap::Arg::with_name("pbo")
+                .help("PBO to sign")
+                .required(true)
+            ).arg(clap::Arg::with_name("signature")
+                .help("Filename of the output signature file")
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

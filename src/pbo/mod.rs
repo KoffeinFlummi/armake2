@@ -16,6 +16,7 @@ mod fs;
 mod header;
 pub use header::{PBOHeader, PackingMethod};
 
+#[derive(Clone)]
 pub struct PBO {
     pub files: LinkedHashMap<String, Cursor<Box<[u8]>>>,
     pub header_extensions: HashMap<String, String>,

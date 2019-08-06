@@ -2,7 +2,7 @@ use crate::ArmakeError;
 
 pub trait Command {
     // (name, description)
-    fn register(&self) -> (&str, clap::App);
+    fn register(&self) -> clap::App;
     
     fn run(&self, _args: &clap::ArgMatches) -> Result<(), ArmakeError> {
         unimplemented!();
@@ -32,6 +32,9 @@ pub use rapify::Rapify;
 
 mod derapify;
 pub use derapify::Derapify;
+
+mod preprocess;
+pub use preprocess::Preprocess;
 
 #[cfg(feature = "signing")]
 pub mod signing;

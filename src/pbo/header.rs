@@ -5,6 +5,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crate::ArmakeError;
 use crate::io::{ReadExt, WriteExt};
 
+#[derive(Clone, PartialEq)]
 pub struct PBOHeader {
     pub filename: String,
     pub packing_method: u32,

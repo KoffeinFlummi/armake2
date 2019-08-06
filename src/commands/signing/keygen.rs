@@ -23,15 +23,13 @@ impl Keygen {
 }
 
 impl Command for Keygen {
-    fn register(&self) -> (&str, clap::App) {
-        ("keygen",
-            clap::SubCommand::with_name("keygen")
-                .about("Generate a keypair with the specified path (extensions are added)")
-                .arg(clap::Arg::with_name("keyname")
-                    .help("Name of the keypair")
-                    .required(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("keygen")
+            .about("Generate a keypair with the specified path (extensions are added)")
+            .arg(clap::Arg::with_name("keyname")
+                .help("Name of the keypair")
+                .required(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

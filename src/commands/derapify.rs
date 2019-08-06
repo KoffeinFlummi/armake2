@@ -15,18 +15,16 @@ impl Derapify {
 }
 
 impl Command for Derapify {
-    fn register(&self) -> (&str, clap::App) {
-        ("derapify",
-            clap::SubCommand::with_name("derapify")
-                .about("Derapify a config")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source file")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Location to write file")
-                    .required(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("derapify")
+            .about("Derapify a config")
+            .arg(clap::Arg::with_name("source")
+                .help("Source file")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Location to write file")
+                .required(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

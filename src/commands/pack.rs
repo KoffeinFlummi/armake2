@@ -20,28 +20,26 @@ impl Pack {
 }
 
 impl Command for Pack {
-    fn register(&self) -> (&str, clap::App) {
-        ("pack",
-            clap::SubCommand::with_name("pack")
-                .about("Pack a folder into a PBO without any binarization or rapification")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source folder")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Location to write file")
-                ).arg(clap::Arg::with_name("header")
-                    .help("Headers to add into the PBO")
-                    .short("h")
-                    .short("e")
-                    .multiple(true)
-                    .takes_value(true)
-                ).arg(clap::Arg::with_name("exclude")
-                    .help("Excluded files patterns")
-                    .short("x")
-                    .multiple(true)
-                    .takes_value(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("pack")
+            .about("Pack a folder into a PBO without any binarization or rapification")
+            .arg(clap::Arg::with_name("source")
+                .help("Source folder")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Location to write file")
+            ).arg(clap::Arg::with_name("header")
+                .help("Headers to add into the PBO")
+                .short("h")
+                .short("e")
+                .multiple(true)
+                .takes_value(true)
+            ).arg(clap::Arg::with_name("exclude")
+                .help("Excluded files patterns")
+                .short("x")
+                .multiple(true)
+                .takes_value(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

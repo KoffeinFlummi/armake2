@@ -22,18 +22,16 @@ impl Binarize {
 }
 
 impl Command for Binarize {
-    fn register(&self) -> (&str, clap::App) {
-        ("binarize",
-            clap::SubCommand::with_name("binarize")
-                .about("Binarize a file using BI's binarize.exe (Windows only)")
-                .arg(clap::Arg::with_name("source")
-                    .help("Source file")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Location to write file")
-                    .required(true)
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("binarize")
+            .about("Binarize a file using BI's binarize.exe (Windows only)")
+            .arg(clap::Arg::with_name("source")
+                .help("Source file")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Location to write file")
+                .required(true)
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {

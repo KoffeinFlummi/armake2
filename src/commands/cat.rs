@@ -21,20 +21,18 @@ impl Cat {
 }
 
 impl Command for Cat {
-    fn register(&self) -> (&str, clap::App) {
-        ("cat",
-            clap::SubCommand::with_name("cat")
-                .about("Read the named file from the target PBO")
-                .arg(clap::Arg::with_name("source")
-                    .help("Target PBO to read")
-                    .required(true)
-                ).arg(clap::Arg::with_name("filename")
-                    .help("File to read from PBO")
-                    .required(true)
-                ).arg(clap::Arg::with_name("target")
-                    .help("Location to write file")
-                )
-        )
+    fn register(&self) -> clap::App {
+        clap::SubCommand::with_name("cat")
+            .about("Read the named file from the target PBO")
+            .arg(clap::Arg::with_name("source")
+                .help("Target PBO to read")
+                .required(true)
+            ).arg(clap::Arg::with_name("filename")
+                .help("File to read from PBO")
+                .required(true)
+            ).arg(clap::Arg::with_name("target")
+                .help("Location to write file")
+            )
     }
 
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {
