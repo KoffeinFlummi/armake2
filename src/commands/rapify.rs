@@ -10,7 +10,7 @@ impl Rapify {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
+    fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
         let config = Config::read(input, path, includefolders)?;
 
         config.write_rapified(output)?;

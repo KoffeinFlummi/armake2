@@ -5,7 +5,7 @@ use crate::{ArmakeError, Command, Config};
 pub struct Derapify {}
 impl Derapify {
     /// Reads input, derapifies it and writes to output.
-    pub fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), ArmakeError> {
+    fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), ArmakeError> {
         let config = Config::read_rapified(input)?;
 
         config.write(output)?;

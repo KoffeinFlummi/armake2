@@ -6,7 +6,7 @@ use crate::{ArmakeError, Command, PBO};
 
 pub struct Unpack {}
 impl Unpack {
-    pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), ArmakeError> {
+    fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf) -> Result<(), ArmakeError> {
         let pbo = PBO::read(input)?;
 
         create_dir_all(&output)?;

@@ -4,7 +4,7 @@ use crate::{ArmakeError, Command, PBO};
 
 pub struct Inspect {}
 impl Inspect {
-    pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), ArmakeError> {
+    fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), ArmakeError> {
         let pbo = PBO::read(input)?;
 
         if !pbo.header_extensions.is_empty() {

@@ -8,7 +8,7 @@ use crate::error;
 pub struct Binarize {}
 impl Binarize {
     /// Binarizes the given path using BI's binarize.exe (on Windows) and writes it to the output.
-    pub fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), ArmakeError> {
+    fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), ArmakeError> {
         if !cfg!(windows) {
             return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
         }

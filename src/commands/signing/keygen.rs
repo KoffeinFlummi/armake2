@@ -5,7 +5,7 @@ use crate::{ArmakeError, BIPrivateKey, Command};
 
 pub struct Keygen {}
 impl Keygen {
-    pub fn cmd_keygen(keyname: PathBuf) -> Result<(), ArmakeError> {
+    fn cmd_keygen(keyname: PathBuf) -> Result<(), ArmakeError> {
         let private_key = BIPrivateKey::generate(1024, keyname.file_name().unwrap().to_str().unwrap().to_string());
         let public_key = private_key.to_public_key();
         let name = keyname.file_name().unwrap().to_str().unwrap();

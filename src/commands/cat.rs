@@ -4,7 +4,7 @@ use crate::{ArmakeError, Command, PBO};
 
 pub struct Cat {}
 impl Cat {
-    pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &str) -> Result<(), ArmakeError> {
+    fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &str) -> Result<(), ArmakeError> {
         let pbo = PBO::read(input)?;
 
         match pbo.files.get(name) {

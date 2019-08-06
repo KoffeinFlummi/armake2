@@ -5,7 +5,7 @@ use crate::{ArmakeError, Command, PBO};
 
 pub struct Pack {}
 impl Pack {
-    pub fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &[&str], excludes: &[&str]) -> Result<(), ArmakeError> {
+    fn cmd_pack<O: Write>(input: PathBuf, output: &mut O, headerext: &[&str], excludes: &[&str]) -> Result<(), ArmakeError> {
         let mut pbo = PBO::from_directory(input, false, excludes, &Vec::new())?;
 
         for h in headerext {

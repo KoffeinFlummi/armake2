@@ -5,7 +5,7 @@ use crate::{ArmakeError, BIPublicKey, BISign, Command, PBO};
 
 pub struct Verify {}
 impl Verify {
-    pub fn cmd_verify(publickey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>) -> Result<(), ArmakeError> {
+    fn cmd_verify(publickey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>) -> Result<(), ArmakeError> {
         let publickey = BIPublicKey::read(&mut File::open(&publickey_path).expect("Failed to open public key")).expect("Failed to read public key");
         let pbo = PBO::read(&mut File::open(&pbo_path).expect("Failed to open PBO")).expect("Failed to read PBO");
 

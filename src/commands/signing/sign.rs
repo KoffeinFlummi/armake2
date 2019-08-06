@@ -5,7 +5,7 @@ use crate::{ArmakeError, BIPrivateKey, BISignVersion, Command, PBO};
 
 pub struct Sign {}
 impl Sign {
-    pub fn cmd_sign(privatekey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>, version: BISignVersion) -> Result<(), ArmakeError> {
+    fn cmd_sign(privatekey_path: PathBuf, pbo_path: PathBuf, signature_path: Option<PathBuf>, version: BISignVersion) -> Result<(), ArmakeError> {
         let privatekey = BIPrivateKey::read(&mut File::open(&privatekey_path).expect("Failed to open private key")).expect("Failed to read private key");
         let pbo = PBO::read(&mut File::open(&pbo_path).expect("Failed to open PBO")).expect("Failed to read PBO");
 

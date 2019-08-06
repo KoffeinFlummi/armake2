@@ -5,7 +5,7 @@ use crate::{ArmakeError, Command, PBO};
 
 pub struct Build {}
 impl Build {
-    pub fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &[&str], excludes: &[&str], includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
+    fn cmd_build<O: Write>(input: PathBuf, output: &mut O, headerext: &[&str], excludes: &[&str], includefolders: &[PathBuf]) -> Result<(), ArmakeError> {
         let mut pbo = PBO::from_directory(input, true, excludes, includefolders)?;
 
         for h in headerext {
