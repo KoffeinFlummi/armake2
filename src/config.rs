@@ -24,7 +24,7 @@ pub mod config_grammar {
 /// # Examples
 ///
 /// ```
-/// # use armake2::config::Config;
+/// # use armake2::Config;
 /// let input = String::from("
 /// #define bar 42
 ///

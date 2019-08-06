@@ -1,6 +1,6 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
-use armake2::config::*;
+use armake2::Config;
 
 #[test]
 fn config_read() {
