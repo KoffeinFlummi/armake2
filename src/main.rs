@@ -36,8 +36,8 @@ fn main() {
 
     for command in commands.iter() {
         let sub = command.register();
+        hash_commands.insert(sub.get_name().to_owned(), command);
         app = app.subcommand(sub);
-        hash_commands.insert(app.get_name().to_owned(), command);
     }
 
     let matches = app.get_matches();
