@@ -210,9 +210,7 @@ impl PBO {
         }
 
         output.write_all(&[0])?;
-        let mut hash = Vec::new();
-        h.result(&mut hash);
-        output.write_all(&hash)?;
+        output.write_all(h.result_str().as_bytes())?;
 
         Ok(())
     }
