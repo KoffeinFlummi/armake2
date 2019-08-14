@@ -1,12 +1,11 @@
 use std::collections::{HashMap};
 use std::ffi::{OsStr};
-use std::fs::{File, create_dir_all, read_dir};
+use std::fs::{File, create_dir_all};
 use std::io::{Read, Write, Seek, SeekFrom, Error, Cursor};
 use std::path::{PathBuf};
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use linked_hash_map::{LinkedHashMap};
 use openssl::hash::{Hasher, MessageDigest};
+use linked_hash_map::{LinkedHashMap};
 use regex::{Regex};
 
 use crate::error::*;
@@ -15,14 +14,8 @@ use crate::config::*;
 use crate::preprocess::*;
 use crate::binarize;
 
-struct PBOHeader {
-    filename: String,
-    packing_method: u32,
-    original_size: u32,
-    reserved: u32,
-    timestamp: u32,
-    data_size: u32,
-}
+mod header;
+pub use header::PBOHeader;
 
 /// PBO file
 ///
@@ -47,51 +40,6 @@ pub struct PBO {
     /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
     /// and included in the output
     pub checksum: Option<Vec<u8>>,
-}
-
-impl PBOHeader {
-    fn read<I: Read>(input: &mut I) -> Result<PBOHeader, Error> {
-        Ok(PBOHeader {
-            filename: input.read_cstring()?,
-            packing_method: input.read_u32::<LittleEndian>()?,
-            original_size: input.read_u32::<LittleEndian>()?,
-            reserved: input.read_u32::<LittleEndian>()?,
-            timestamp: input.read_u32::<LittleEndian>()?,
-            data_size: input.read_u32::<LittleEndian>()?,
-        })
-    }
-
-    fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
-        output.write_cstring(&self.filename)?;
-        output.write_u32::<LittleEndian>(self.packing_method)?;
-        output.write_u32::<LittleEndian>(self.original_size)?;
-        output.write_u32::<LittleEndian>(self.reserved)?;
-        output.write_u32::<LittleEndian>(self.timestamp)?;
-        output.write_u32::<LittleEndian>(self.data_size)?;
-        Ok(())
-    }
-}
-
-fn matches_glob(s: &str, pattern: &str) -> bool {
-    if let Some(index) = pattern.find('*') {
-        if s[..index] != pattern[..index] { return false; }
-
-        for i in (index+1)..(s.len()-1) {
-            if matches_glob(&s[i..].to_string(), &pattern[(index+1)..].to_string()) { return true; }
-        }
-
-        false
-    } else {
-        s == pattern
-    }
-}
-
-fn file_allowed(name: &str, exclude_patterns: &[String]) -> bool {
-    for pattern in exclude_patterns {
-        if matches_glob(&name, &pattern) { return false; }
-    }
-
-    true
 }
 
 impl PBO {
@@ -292,23 +240,6 @@ impl PBO {
 
         Ok(cursor)
     }
-}
-
-fn list_files(directory: &PathBuf) -> Result<Vec<PathBuf>, Error> {
-    let mut files: Vec<PathBuf> = Vec::new();
-
-    for entry in read_dir(directory)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            for f in list_files(&path)? {
-                files.push(f);
-            }
-        } else {
-            files.push(path);
-        }
-    }
-
-    Ok(files)
 }
 
 pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), Error> {

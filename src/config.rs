@@ -14,7 +14,7 @@ use crate::preprocess::*;
 
 pub mod config_grammar {
     #![allow(missing_docs)]
-    include!(concat!(env!("OUT_DIR"), "/config_grammar.rs"));
+    include!(concat!(env!("OUT_DIR"), "/config.rs"));
 }
 
 /// Config
