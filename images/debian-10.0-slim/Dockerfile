@@ -12,7 +12,7 @@ RUN cargo build --release
 
 FROM debian:10.0-slim
 RUN apt-get update --yes && \
-    apt-get install --yes --no-install-recommends libssl-dev=1.1.1c-1 && \
+    apt-get install --yes --no-install-recommends libssl1.1=1.1.1c-1 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /armake2-master/target/release/armake2 /usr/bin/armake2
