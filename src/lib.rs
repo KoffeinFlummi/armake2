@@ -2,7 +2,7 @@ pub mod error;
 pub use crate::error::ArmakeError;
 
 mod binarize;
-pub use binarize::binarize;
+pub use binarize::{binarize, find_binarize_exe};
 
 mod config;
 pub use config::Config;
