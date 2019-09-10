@@ -42,7 +42,6 @@ pub struct ConfigParseError {
 #[derive(Debug)]
 pub enum ArmakeError {
     GENERIC(String),
-    MESSAGE(String, Box<ArmakeError>),
     CONFIG(ConfigParseError),
     PARSE(PreprocessParseError),
     PREPROCESS(PreprocessError),
@@ -64,7 +63,6 @@ impl std::fmt::Display for ArmakeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             ArmakeError::GENERIC(ref s) => write!(f, "{}", s),
-            ArmakeError::MESSAGE(ref s, ref _e) => write!(f, "{}", s),
             ArmakeError::CONFIG(ref e) => write!(f, "Config: {}", e.message),
             ArmakeError::PARSE(ref e) => write!(f, "Preprocessor Parse: {}", e.message),
             ArmakeError::PREPROCESS(ref e) => write!(f, "Preprocessor: {}", e.message),
@@ -78,7 +76,6 @@ impl std::error::Error for ArmakeError {
     fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ArmakeError::GENERIC(ref _s) => Some(self),
-            ArmakeError::MESSAGE(ref _s, ref e) => Some(e),
             ArmakeError::CONFIG(ref e) => Some(&e.source),
             ArmakeError::PARSE(ref e) => Some(&e.source),
             ArmakeError::PREPROCESS(ref e) => Some(&e.source),

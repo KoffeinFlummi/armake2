@@ -397,13 +397,7 @@ impl ConfigClass {
                                     vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
                                 class_offset += c
-                                    .write_rapified(&mut cursor, class_offset)
-                                    .map_err(|source| {
-                                        ArmakeError::MESSAGE(
-                                            format!("Failed to rapify {}", name),
-                                            Box::new(source),
-                                        )
-                                    })?;
+                                    .write_rapified(&mut cursor, class_offset)?;
                                 class_bodies.push(cursor);
                             }
                         }
