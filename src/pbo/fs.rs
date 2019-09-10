@@ -1,16 +1,19 @@
-use std::path::PathBuf;
 use std::fs::read_dir;
+use std::path::PathBuf;
 
 use crate::ArmakeError;
-
 
 /// Checks a string against a glob pattern
 pub fn matches_glob(s: &str, pattern: &str) -> bool {
     if let Some(index) = pattern.find('*') {
-        if s[..index] != pattern[..index] { return false; }
+        if s[..index] != pattern[..index] {
+            return false;
+        }
 
-        for i in (index+1)..(s.len()-1) {
-            if matches_glob(&s[i..].to_string(), &pattern[(index+1)..].to_string()) { return true; }
+        for i in (index + 1)..(s.len() - 1) {
+            if matches_glob(&s[i..].to_string(), &pattern[(index + 1)..].to_string()) {
+                return true;
+            }
         }
         false
     } else {
@@ -21,7 +24,9 @@ pub fn matches_glob(s: &str, pattern: &str) -> bool {
 /// Checks a filename against a blacklist
 pub fn file_allowed(name: &str, exclude_patterns: &[&str]) -> bool {
     for pattern in exclude_patterns {
-        if matches_glob(&name, &pattern) { return false; }
+        if matches_glob(&name, &pattern) {
+            return false;
+        }
     }
     true
 }

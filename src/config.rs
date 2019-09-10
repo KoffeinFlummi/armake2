@@ -1,17 +1,17 @@
 //! Functions for rapifying and derapifying Arma configs
 
-use std::io::{Read, Seek, Write, SeekFrom, Cursor, BufReader, BufWriter};
-use std::iter::{Sum};
+use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
+use std::iter::Sum;
 use std::path::PathBuf;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::*;
 use crate::io::*;
 use crate::preprocess::*;
+use crate::*;
 
-use crate::ArmakeError;
 use crate::error::ConfigParseError;
+use crate::ArmakeError;
 
 pub mod config_grammar {
     #![allow(missing_docs)]
@@ -90,8 +90,10 @@ impl ConfigArrayElement {
             ConfigArrayElement::StringElement(s) => s.len() + 2,
             ConfigArrayElement::FloatElement(_f) => 5,
             ConfigArrayElement::IntElement(_i) => 5,
-            ConfigArrayElement::ArrayElement(a) => 1 + compressed_int_len(a.elements.len() as u32) +
-                usize::sum(a.elements.iter().map(|e| e.rapified_length()))
+            ConfigArrayElement::ArrayElement(a) => {
+                1 + compressed_int_len(a.elements.len() as u32)
+                    + usize::sum(a.elements.iter().map(|e| e.rapified_length()))
+            }
         }
     }
 }
@@ -103,13 +105,21 @@ impl ConfigArray {
             match value {
                 ConfigArrayElement::ArrayElement(ref a) => {
                     a.write(output)?;
-                },
+                }
                 ConfigArrayElement::StringElement(s) => {
-                    output.write_all(format!("\"{}\"", s.replace("\r", "\\r").replace("\n", "\\n").replace("\"", "\"\"")).as_bytes())?;
-                },
+                    output.write_all(
+                        format!(
+                            "\"{}\"",
+                            s.replace("\r", "\\r")
+                                .replace("\n", "\\n")
+                                .replace("\"", "\"\"")
+                        )
+                        .as_bytes(),
+                    )?;
+                }
                 ConfigArrayElement::FloatElement(f) => {
                     output.write_all(format!("{:?}", f).as_bytes())?;
-                },
+                }
                 ConfigArrayElement::IntElement(i) => {
                     output.write_all(format!("{}", i).as_bytes())?;
                 }
@@ -131,17 +141,17 @@ impl ConfigArray {
                     output.write_all(&[0])?;
                     output.write_cstring(s)?;
                     written += s.len() + 2;
-                },
+                }
                 ConfigArrayElement::FloatElement(f) => {
                     output.write_all(&[1])?;
                     output.write_f32::<LittleEndian>(*f)?;
                     written += 5;
-                },
+                }
                 ConfigArrayElement::IntElement(i) => {
                     output.write_all(&[2])?;
                     output.write_i32::<LittleEndian>(*i)?;
                     written += 5;
-                },
+                }
                 ConfigArrayElement::ArrayElement(a) => {
                     output.write_all(&[3])?;
                     written += 1 + a.write_rapified(output)?;
@@ -162,11 +172,17 @@ impl ConfigArray {
             if element_type == 0 {
                 elements.push(ConfigArrayElement::StringElement(input.read_cstring()?));
             } else if element_type == 1 {
-                elements.push(ConfigArrayElement::FloatElement(input.read_f32::<LittleEndian>()?));
+                elements.push(ConfigArrayElement::FloatElement(
+                    input.read_f32::<LittleEndian>()?,
+                ));
             } else if element_type == 2 {
-                elements.push(ConfigArrayElement::IntElement(input.read_i32::<LittleEndian>()?));
+                elements.push(ConfigArrayElement::IntElement(
+                    input.read_i32::<LittleEndian>()?,
+                ));
             } else if element_type == 3 {
-                elements.push(ConfigArrayElement::ArrayElement(ConfigArray::read_rapified(input)?));
+                elements.push(ConfigArrayElement::ArrayElement(
+                    ConfigArray::read_rapified(input)?,
+                ));
             } else {
                 return Err(error!("Unrecognized array element type: {}", element_type));
             }
@@ -187,12 +203,21 @@ impl ConfigEntry {
             ConfigEntry::FloatEntry(_f) => 6,
             ConfigEntry::IntEntry(_i) => 6,
             ConfigEntry::ArrayEntry(a) => {
-                let len = 1 + compressed_int_len(a.elements.len() as u32) +
-                    usize::sum(a.elements.iter().map(|e| e.rapified_length()));
-                if a.is_expansion { len + 4 } else { len }
-            },
+                let len = 1
+                    + compressed_int_len(a.elements.len() as u32)
+                    + usize::sum(a.elements.iter().map(|e| e.rapified_length()));
+                if a.is_expansion {
+                    len + 4
+                } else {
+                    len
+                }
+            }
             ConfigEntry::ClassEntry(c) => {
-                if c.is_external || c.is_deletion { 1 } else { 5 }
+                if c.is_external || c.is_deletion {
+                    1
+                } else {
+                    5
+                }
             }
         }
     }
@@ -215,33 +240,57 @@ impl ConfigClass {
                             } else if c.is_external {
                                 output.write_all(format!("class {};\n", key).as_bytes())?;
                             } else {
-                                let parent = if c.parent == "" { String::from("") } else { format!(": {}", c.parent) };
+                                let parent = if c.parent == "" {
+                                    String::from("")
+                                } else {
+                                    format!(": {}", c.parent)
+                                };
                                 match &c.entries {
                                     Some(entries) => {
                                         if !entries.is_empty() {
-                                            output.write_all(format!("class {}{} {{", key, parent).as_bytes())?;
+                                            output.write_all(
+                                                format!("class {}{} {{", key, parent).as_bytes(),
+                                            )?;
                                             c.write(output, level + 1)?;
-                                            output.write_all(String::from("    ").repeat(level as usize).as_bytes())?;
+                                            output.write_all(
+                                                String::from("    ")
+                                                    .repeat(level as usize)
+                                                    .as_bytes(),
+                                            )?;
                                             output.write_all(b"};\n")?;
                                         } else {
-                                            output.write_all(format!("class {}{} {{}};\n", key, parent).as_bytes())?;
+                                            output.write_all(
+                                                format!("class {}{} {{}};\n", key, parent)
+                                                    .as_bytes(),
+                                            )?;
                                         }
-                                    },
+                                    }
                                     None => {
-                                        output.write_all(format!("class {}{} {{}};\n", key, parent).as_bytes())?;
-                                    },
+                                        output.write_all(
+                                            format!("class {}{} {{}};\n", key, parent).as_bytes(),
+                                        )?;
+                                    }
                                 }
                             }
-                        },
+                        }
                         ConfigEntry::StringEntry(s) => {
-                            output.write_all(format!("{} = \"{}\";\n", key, s.replace("\r", "\\r").replace("\n", "\\n").replace("\"", "\"\"")).as_bytes())?;
-                        },
+                            output.write_all(
+                                format!(
+                                    "{} = \"{}\";\n",
+                                    key,
+                                    s.replace("\r", "\\r")
+                                        .replace("\n", "\\n")
+                                        .replace("\"", "\"\"")
+                                )
+                                .as_bytes(),
+                            )?;
+                        }
                         ConfigEntry::FloatEntry(f) => {
                             output.write_all(format!("{} = {:?};\n", key, f).as_bytes())?;
-                        },
+                        }
                         ConfigEntry::IntEntry(i) => {
                             output.write_all(format!("{} = {};\n", key, i).as_bytes())?;
-                        },
+                        }
                         ConfigEntry::ArrayEntry(ref a) => {
                             if a.is_expansion {
                                 output.write_all(format!("{}[] += ", key).as_bytes())?;
@@ -250,10 +299,10 @@ impl ConfigClass {
                             }
                             a.write(&mut output)?;
                             output.write_all(b";\n")?;
-                        },
+                        }
                     }
                 }
-            },
+            }
             None => {}
         }
 
@@ -262,19 +311,29 @@ impl ConfigClass {
 
     pub fn rapified_length(&self) -> usize {
         match &self.entries {
-            Some(entries) => self.parent.len() + 1 +
-                compressed_int_len(entries.len() as u32) +
-                usize::sum(entries.iter().map(|(k,v)| {
-                    k.len() + 1 + v.rapified_length() + match v {
-                        ConfigEntry::ClassEntry(c) => c.rapified_length(),
-                        _ => 0
-                    }
-                })),
-            None => 0
+            Some(entries) => {
+                self.parent.len()
+                    + 1
+                    + compressed_int_len(entries.len() as u32)
+                    + usize::sum(entries.iter().map(|(k, v)| {
+                        k.len()
+                            + 1
+                            + v.rapified_length()
+                            + match v {
+                                ConfigEntry::ClassEntry(c) => c.rapified_length(),
+                                _ => 0,
+                            }
+                    }))
+            }
+            None => 0,
         }
     }
 
-    pub fn write_rapified<O: Write>(&self, output: &mut O, offset: usize) -> Result<usize, ArmakeError> {
+    pub fn write_rapified<O: Write>(
+        &self,
+        output: &mut O,
+        offset: usize,
+    ) -> Result<usize, ArmakeError> {
         let mut written = 0;
 
         match &self.entries {
@@ -284,7 +343,11 @@ impl ConfigClass {
 
                 written += output.write_compressed_int(entries.len() as u32)?;
 
-                let entries_len = usize::sum(entries.iter().map(|(k,v)| k.len() + 1 + v.rapified_length()));
+                let entries_len = usize::sum(
+                    entries
+                        .iter()
+                        .map(|(k, v)| k.len() + 1 + v.rapified_length()),
+                );
                 let mut class_offset = offset + written + entries_len;
                 let mut class_bodies: Vec<Cursor<Box<[u8]>>> = Vec::new();
                 let pre_entries = written;
@@ -297,28 +360,28 @@ impl ConfigClass {
                             output.write_cstring(name)?;
                             output.write_cstring(s)?;
                             written += name.len() + s.len() + 4;
-                        },
+                        }
                         ConfigEntry::FloatEntry(f) => {
                             output.write_all(&[1, 1])?;
                             output.write_cstring(name)?;
                             output.write_f32::<LittleEndian>(*f)?;
                             written += name.len() + 7;
-                        },
+                        }
                         ConfigEntry::IntEntry(i) => {
                             output.write_all(&[1, 2])?;
                             output.write_cstring(name)?;
                             output.write_i32::<LittleEndian>(*i)?;
                             written += name.len() + 7;
-                        },
+                        }
                         ConfigEntry::ArrayEntry(a) => {
                             output.write_all(if a.is_expansion { &[5] } else { &[2] })?;
                             if a.is_expansion {
-                                output.write_all(&[1,0,0,0])?;
+                                output.write_all(&[1, 0, 0, 0])?;
                                 written += 4;
                             }
                             output.write_cstring(name)?;
                             written += name.len() + 2 + a.write_rapified(output)?;
-                        },
+                        }
                         ConfigEntry::ClassEntry(c) => {
                             if c.is_external || c.is_deletion {
                                 output.write_all(if c.is_deletion { &[4] } else { &[3] })?;
@@ -330,17 +393,25 @@ impl ConfigClass {
                                 output.write_u32::<LittleEndian>(class_offset as u32)?;
                                 written += name.len() + 6;
 
-                                let buffer: Box<[u8]> = vec![0; c.rapified_length()].into_boxed_slice();
+                                let buffer: Box<[u8]> =
+                                    vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-                                class_offset += c.write_rapified(&mut cursor, class_offset).map_err(|source| ArmakeError::MESSAGE(
-                                    format!("Failed to rapify {}", name),
-                                    Box::new(source),
-                                ))?;
+                                class_offset += c
+                                    .write_rapified(&mut cursor, class_offset)
+                                    .map_err(|source| {
+                                        ArmakeError::MESSAGE(
+                                            format!("Failed to rapify {}", name),
+                                            Box::new(source),
+                                        )
+                                    })?;
                                 class_bodies.push(cursor);
                             }
                         }
                     }
-                    assert_eq!(written - pre_write, entry.rapified_length() + name.len() + 1);
+                    assert_eq!(
+                        written - pre_write,
+                        entry.rapified_length() + name.len() + 1
+                    );
                 }
 
                 assert_eq!(written - pre_entries, entries_len);
@@ -349,14 +420,17 @@ impl ConfigClass {
                     output.write_all(cursor.get_ref())?;
                     written += cursor.get_ref().len();
                 }
-            },
-            None => { unreachable!() }
+            }
+            None => unreachable!(),
         }
 
         Ok(written)
     }
 
-    pub fn read_rapified<I: Read + Seek>(input: &mut I, level: u32) -> Result<ConfigClass, ArmakeError> {
+    pub fn read_rapified<I: Read + Seek>(
+        input: &mut I,
+        level: u32,
+    ) -> Result<ConfigClass, ArmakeError> {
         let mut fp = 0;
         if level == 0 {
             input.seek(SeekFrom::Start(16))?;
@@ -386,9 +460,15 @@ impl ConfigClass {
                 if subtype == 0 {
                     entries.push((name, ConfigEntry::StringEntry(input.read_cstring()?)));
                 } else if subtype == 1 {
-                    entries.push((name, ConfigEntry::FloatEntry(input.read_f32::<LittleEndian>()?)));
+                    entries.push((
+                        name,
+                        ConfigEntry::FloatEntry(input.read_f32::<LittleEndian>()?),
+                    ));
                 } else if subtype == 2 {
-                    entries.push((name, ConfigEntry::IntEntry(input.read_i32::<LittleEndian>()?)));
+                    entries.push((
+                        name,
+                        ConfigEntry::IntEntry(input.read_i32::<LittleEndian>()?),
+                    ));
                 } else {
                     return Err(error!("Unrecognized variable entry subtype: {}.", subtype));
                 }
@@ -408,7 +488,7 @@ impl ConfigClass {
                     parent: String::from(""),
                     is_external: entry_type == 3,
                     is_deletion: entry_type == 5,
-                    entries: None
+                    entries: None,
                 };
 
                 entries.push((name.clone(), ConfigEntry::ClassEntry(class_entry)));
@@ -482,19 +562,36 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, ArmakeError> {
+    pub fn read<I: Read>(
+        input: &mut I,
+        path: Option<PathBuf>,
+        includefolders: &[PathBuf],
+    ) -> Result<Config, ArmakeError> {
         let mut buffer = String::new();
         input.read_to_string(&mut buffer)?;
 
-        let (preprocessed, info) = preprocess(buffer.clone(), path.clone(), includefolders)?;
+        let (preprocessed, info) = preprocess(buffer.clone(), path.clone(), includefolders, |path| {
+            let mut content = String::new();
+            std::fs::File::open(path)
+                .unwrap()
+                .read_to_string(&mut content)
+                .unwrap();
+            content
+        })?;
 
         let mut warnings: Vec<(usize, String, Option<&'static str>)> = Vec::new();
 
-        let result = config_grammar::config(&preprocessed, &mut warnings).map_err(|source| ArmakeError::CONFIG(ConfigParseError {
-            path: Some(path.unwrap_or_else(|| PathBuf::new()).to_string_lossy().to_string()),
-            message: buffer,
-            source,
-        }))?;
+        let result = config_grammar::config(&preprocessed, &mut warnings).map_err(|source| {
+            ArmakeError::CONFIG(ConfigParseError {
+                path: Some(
+                    path.unwrap_or_else(|| PathBuf::new())
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+                message: buffer,
+                source,
+            })
+        })?;
 
         // for w in warnings {
 
@@ -519,7 +616,11 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn from_string(input: String, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, ArmakeError> {
+    pub fn from_string(
+        input: String,
+        path: Option<PathBuf>,
+        includefolders: &[PathBuf],
+    ) -> Result<Config, ArmakeError> {
         let mut cursor = Cursor::new(input.into_bytes());
         Self::read(&mut cursor, path, includefolders)
     }
@@ -536,7 +637,7 @@ impl Config {
         }
 
         Ok(Config {
-            root_body: ConfigClass::read_rapified(&mut reader, 0)?
+            root_body: ConfigClass::read_rapified(&mut reader, 0)?,
         })
     }
 }

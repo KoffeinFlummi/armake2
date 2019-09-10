@@ -2,15 +2,17 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{ArmakeError, Command, binarize};
 use crate::error;
+use crate::{binarize, ArmakeError, Command};
 
 pub struct Binarize {}
 impl Binarize {
     /// Binarizes the given path using BI's binarize.exe (on Windows) and writes it to the output.
     fn cmd_binarize(input: PathBuf, output: PathBuf) -> Result<(), ArmakeError> {
         if !cfg!(windows) {
-            return Err(error!("binarize.exe is only available on windows. Use rapify to binarize configs."));
+            return Err(error!(
+                "binarize.exe is only available on windows. Use rapify to binarize configs."
+            ));
         }
 
         let cursor = binarize(&input)?;
@@ -25,12 +27,15 @@ impl Command for Binarize {
     fn register(&self) -> clap::App {
         clap::SubCommand::with_name("binarize")
             .about("Binarize a file using BI's binarize.exe (Windows only)")
-            .arg(clap::Arg::with_name("source")
-                .help("Source file")
-                .required(true)
-            ).arg(clap::Arg::with_name("target")
-                .help("Location to write file")
-                .required(true)
+            .arg(
+                clap::Arg::with_name("source")
+                    .help("Source file")
+                    .required(true),
+            )
+            .arg(
+                clap::Arg::with_name("target")
+                    .help("Location to write file")
+                    .required(true),
             )
     }
 

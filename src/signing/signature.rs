@@ -3,9 +3,9 @@ use std::io::{Read, Write};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use openssl::bn::BigNum;
 
-use crate::{ArmakeError, BISignVersion};
 use crate::error;
 use crate::io::{ReadExt, WriteExt};
+use crate::{ArmakeError, BISignVersion};
 
 pub struct BISign {
     pub version: BISignVersion,
@@ -15,7 +15,7 @@ pub struct BISign {
     pub n: BigNum,
     pub sig1: BigNum,
     pub sig2: BigNum,
-    pub sig3: BigNum
+    pub sig3: BigNum,
 }
 
 impl BISign {

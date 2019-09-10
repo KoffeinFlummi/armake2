@@ -2,8 +2,8 @@ use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::ArmakeError;
 use crate::io::{ReadExt, WriteExt};
+use crate::ArmakeError;
 
 #[derive(Clone, PartialEq)]
 pub struct PBOHeader {
@@ -47,10 +47,10 @@ impl PBOHeader {
 
     pub fn method(&self) -> PackingMethod {
         match self.packing_method {
-            0x0000_0000 => { PackingMethod::Uncompressed },
-            0x0430_7273 => { PackingMethod::Packed },
-            0x5665_7273 => { PackingMethod::ProductEntry },
-            _ => { PackingMethod::Unknown },
+            0x0000_0000 => PackingMethod::Uncompressed,
+            0x0430_7273 => PackingMethod::Packed,
+            0x5665_7273 => PackingMethod::ProductEntry,
+            _ => PackingMethod::Unknown,
         }
     }
 }

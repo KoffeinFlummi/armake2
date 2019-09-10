@@ -1,15 +1,15 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{Read, Write, Seek, SeekFrom, Cursor};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use hashbrown::HashMap;
-use linked_hash_map::LinkedHashMap;
 use crypto::{digest::Digest, sha1::Sha1};
+use linked_hash_map::LinkedHashMap;
 use regex::Regex;
 
-use crate::{ArmakeError, Config, binarize};
-use crate::io::{WriteExt, ReadExt};
+use crate::io::{ReadExt, WriteExt};
+use crate::{binarize, ArmakeError, Config};
 
 mod fs;
 
@@ -38,11 +38,15 @@ impl PBO {
             // todo: garbage filter
 
             if header.method() == PackingMethod::ProductEntry {
-                if !first { unreachable!(); }
+                if !first {
+                    unreachable!();
+                }
 
                 loop {
                     let s = input.read_cstring()?;
-                    if s.is_empty() { break; }
+                    if s.is_empty() {
+                        break;
+                    }
 
                     header_extensions.insert(s, input.read_cstring()?);
                 }
@@ -79,10 +83,15 @@ impl PBO {
     /// `exclude_patterns` contains glob patterns to exclude from the PBO, `includefolders` contain
     /// paths to search for absolute includes and should generally include the current working
     /// directory.
-    pub fn from_directory(directory: PathBuf, mut binarize: bool, exclude_patterns: &[&str], includefolders: &[PathBuf]) -> Result<PBO, ArmakeError> {
+    pub fn from_directory(
+        directory: PathBuf,
+        mut binarize: bool,
+        exclude_patterns: &[&str],
+        includefolders: &[PathBuf],
+    ) -> Result<PBO, ArmakeError> {
         let file_list = fs::list_files(&directory)?;
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
-        let mut header_extensions: HashMap<String,String> = HashMap::new();
+        let mut header_extensions: HashMap<String, String> = HashMap::new();
 
         if directory.join("$NOBIN$").exists() || directory.join("$NOBIN-NOTEST$").exists() {
             binarize = false;
@@ -97,7 +106,9 @@ impl PBO {
             let mut name: String = relative.to_str().unwrap().replace("/", "\\");
             let is_binarizable = Regex::new(".(rtm|p3d)$").unwrap().is_match(&name);
 
-            if !fs::file_allowed(&name, &exclude_patterns) { continue; }
+            if !fs::file_allowed(&name, &exclude_patterns) {
+                continue;
+            }
 
             let mut file = File::open(&path)?;
 
@@ -105,7 +116,9 @@ impl PBO {
                 let mut content = String::new();
                 file.read_to_string(&mut content)?;
                 for l in content.lines() {
-                    if l.is_empty() { break; }
+                    if l.is_empty() {
+                        break;
+                    }
 
                     let eq: Vec<String> = l.split('=').map(|s| s.to_string()).collect();
                     if eq.len() == 1 {
@@ -114,7 +127,15 @@ impl PBO {
                         header_extensions.insert(eq[0].clone(), eq[1].clone());
                     }
                 }
-            } else if binarize && vec!["cpp", "rvmat"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
+            } else if binarize
+                && vec!["cpp", "rvmat"].contains(
+                    &path
+                        .extension()
+                        .unwrap_or_else(|| OsStr::new(""))
+                        .to_str()
+                        .unwrap(),
+                )
+            {
                 let config = Config::read(&mut file, Some(path.clone()), includefolders)?;
                 let cursor = config.to_cursor()?;
 
@@ -131,7 +152,10 @@ impl PBO {
                 let mut buffer: Vec<u8> = Vec::new();
                 file.read_to_end(&mut buffer)?;
 
-                name = Regex::new(".p3do$").unwrap().replace_all(&name, ".p3d").to_string();
+                name = Regex::new(".p3do$")
+                    .unwrap()
+                    .replace_all(&name, ".p3d")
+                    .to_string();
 
                 files.insert(name, Cursor::new(buffer.into_boxed_slice()));
             }
@@ -170,14 +194,17 @@ impl PBO {
         }
 
         for (key, value) in self.header_extensions.iter() {
-            if key == "prefix" { continue; }
+            if key == "prefix" {
+                continue;
+            }
 
             headers.write_cstring(key)?;
             headers.write_cstring(value)?;
         }
         headers.write_cstring("".to_string())?;
 
-        let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.clone(),b)).collect();
+        let mut files_sorted: Vec<(String, &Cursor<Box<[u8]>>)> =
+            self.files.iter().map(|(a, b)| (a.clone(), b)).collect();
         files_sorted.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
 
         for (name, cursor) in &files_sorted {

@@ -1,6 +1,6 @@
-use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
-use std::fs::{File, read_dir};
+use std::fs::{read_dir, File};
 use std::io::Read;
+use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use crate::ArmakeError;
 
@@ -8,7 +8,10 @@ use crate::error;
 
 pub fn read_prefix(prefix_path: &Path) -> String {
     let mut content = String::new();
-    File::open(prefix_path).unwrap().read_to_string(&mut content).unwrap();
+    File::open(prefix_path)
+        .unwrap()
+        .read_to_string(&mut content)
+        .unwrap();
 
     content.lines().nth(0).unwrap().to_string()
 }
@@ -16,13 +19,19 @@ pub fn read_prefix(prefix_path: &Path) -> String {
 pub fn matches_include_path(path: &PathBuf, include_path: &str) -> bool {
     let include_pathbuf = PathBuf::from(&include_path.replace("\\", &MAIN_SEPARATOR.to_string()));
 
-    if path.file_name() != include_pathbuf.file_name() { return false; }
+    if path.file_name() != include_pathbuf.file_name() {
+        return false;
+    }
 
     for parent in path.ancestors() {
-        if parent.is_file() { continue; }
+        if parent.is_file() {
+            continue;
+        }
 
         let prefixpath = parent.join("$PBOPREFIX$");
-        if !prefixpath.is_file() { continue; }
+        if !prefixpath.is_file() {
+            continue;
+        }
 
         let mut prefix = read_prefix(&prefixpath);
 
@@ -60,7 +69,8 @@ pub fn search_directory(include_path: &str, directory: PathBuf) -> Option<PathBu
         }
     }
 
-    let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", &MAIN_SEPARATOR.to_string());
+    let direct_path = (&directory).to_str().unwrap().to_string()
+        + &include_path.replace("\\", &MAIN_SEPARATOR.to_string());
     let direct_pathbuf = PathBuf::from(direct_path);
 
     if direct_pathbuf.is_file() {
@@ -76,7 +86,7 @@ pub fn canonicalize(path: PathBuf) -> PathBuf {
         match component {
             Component::ParentDir => {
                 result.pop();
-            },
+            }
             _ => {
                 result.push(component);
             }
@@ -85,7 +95,11 @@ pub fn canonicalize(path: PathBuf) -> PathBuf {
     result
 }
 
-pub fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths: &[PathBuf]) -> Result<PathBuf, ArmakeError> {
+pub fn find_include_file(
+    include_path: &str,
+    origin: Option<&PathBuf>,
+    search_paths: &[PathBuf],
+) -> Result<PathBuf, ArmakeError> {
     if include_path.chars().nth(0).unwrap() != '\\' {
         let mut path = PathBuf::from(include_path.replace("\\", &MAIN_SEPARATOR.to_string()));
 
@@ -101,8 +115,12 @@ pub fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_pa
 
         if !absolute.is_file() {
             match origin {
-                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-                None => Err(error!("Included file \"{}\" not found.", include_path))
+                Some(origin_path) => Err(error!(
+                    "File \"{}\" included from \"{}\" not found.",
+                    include_path,
+                    origin_path.to_str().unwrap().to_string()
+                )),
+                None => Err(error!("Included file \"{}\" not found.", include_path)),
             }
         } else {
             Ok(absolute)
@@ -115,8 +133,12 @@ pub fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_pa
         }
 
         match origin {
-            Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-            None => Err(error!("Included file \"{}\" not found.", include_path))
+            Some(origin_path) => Err(error!(
+                "File \"{}\" included from \"{}\" not found.",
+                include_path,
+                origin_path.to_str().unwrap().to_string()
+            )),
+            None => Err(error!("Included file \"{}\" not found.", include_path)),
         }
     }
 }

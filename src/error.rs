@@ -75,9 +75,9 @@ impl std::fmt::Display for ArmakeError {
 }
 
 impl std::error::Error for ArmakeError {
-    fn cause(&self) -> Option<&std::error::Error> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
-            ArmakeError::GENERIC(ref _s,) => Some(self),
+            ArmakeError::GENERIC(ref _s) => Some(self),
             ArmakeError::MESSAGE(ref _s, ref e) => Some(e),
             ArmakeError::CONFIG(ref e) => Some(&e.source),
             ArmakeError::PARSE(ref e) => Some(&e.source),

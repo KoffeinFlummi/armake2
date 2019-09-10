@@ -1,8 +1,9 @@
-use clap;
-use hashbrown::HashMap;
+use std::collections::HashMap;
 
-use armake2::Command;
+use clap;
+
 use armake2::error::PrintableError;
+use armake2::Command;
 
 fn main() {
     let mut version = env!("CARGO_PKG_VERSION").to_string();
@@ -43,14 +44,12 @@ fn main() {
     let matches = app.get_matches();
 
     match matches.subcommand_name() {
-        Some(v) => {
-            match hash_commands.get(v) {
-                Some(c) => {
-                    let sub_matches = matches.subcommand_matches(v).unwrap();
-                    c.run(sub_matches).unwrap_or_print();
-                },
-                None => println!("Unknown Command"),
+        Some(v) => match hash_commands.get(v) {
+            Some(c) => {
+                let sub_matches = matches.subcommand_matches(v).unwrap();
+                c.run(sub_matches).unwrap_or_print();
             }
+            None => println!("Unknown Command"),
         },
         None => println!("No command"),
     }

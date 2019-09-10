@@ -11,7 +11,7 @@ pub mod commands;
 pub use commands::Command;
 
 pub mod pbo;
-pub use pbo::{PBO, PBOHeader};
+pub use pbo::{PBOHeader, PBO};
 
 pub mod preprocess;
 
@@ -24,7 +24,7 @@ mod signing;
 pub use signing::{BIPrivateKey, BIPublicKey, BISign, BISignVersion};
 
 use std::fs::File;
-use std::io::{Cursor, Read, stdin, stdout};
+use std::io::{stdin, stdout, Cursor, Read};
 
 fn get_input(source: Option<&str>) -> Result<Input, ArmakeError> {
     if let Some(ref path) = source {

@@ -5,7 +5,10 @@ use crate::{ArmakeError, Command, Config};
 pub struct Derapify {}
 impl Derapify {
     /// Reads input, derapifies it and writes to output.
-    fn cmd_derapify<I: Read + Seek, O: Write>(input: &mut I, output: &mut O) -> Result<(), ArmakeError> {
+    fn cmd_derapify<I: Read + Seek, O: Write>(
+        input: &mut I,
+        output: &mut O,
+    ) -> Result<(), ArmakeError> {
         let config = Config::read_rapified(input)?;
 
         config.write(output)?;
@@ -18,12 +21,15 @@ impl Command for Derapify {
     fn register(&self) -> clap::App {
         clap::SubCommand::with_name("derapify")
             .about("Derapify a config")
-            .arg(clap::Arg::with_name("source")
-                .help("Source file")
-                .required(true)
-            ).arg(clap::Arg::with_name("target")
-                .help("Location to write file")
-                .required(true)
+            .arg(
+                clap::Arg::with_name("source")
+                    .help("Source file")
+                    .required(true),
+            )
+            .arg(
+                clap::Arg::with_name("target")
+                    .help("Location to write file")
+                    .required(true),
             )
     }
 

@@ -1,14 +1,15 @@
-use std::io::{Write};
-use std::fs::{File, create_dir};
-use std::path::{PathBuf};
+use std::fs::{create_dir, File};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
-use tempfile::{tempdir};
+use tempfile::tempdir;
 
 use armake2::preprocess::*;
 
 #[test]
 fn test_preprocess_macros() {
-    let input = String::from("\
+    let input = String::from(
+        "\
 #define VERSIONAR {3,5, 0, 0}
 #define FOO(x  , y ) #x z x_y x##_##y
 #define QUOTE(x) #x
@@ -25,11 +26,21 @@ class CfgPatches {
         version = QUOTE(3.5.0.0) ;versionStr=\"3.5.0.0\";
         versionAr [] = VERSIONAR;
     };
-};");
+};",
+    );
 
-    let (output, _) = preprocess(input, None, &Vec::new()).unwrap();
+    let (output, _) = preprocess(input, None, &Vec::new(), |path| {
+        let mut content = String::new();
+        File::open(path)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        content
+    })
+    .unwrap();
 
-    assert_eq!("\
+    assert_eq!(
+        "\
 class CfgPatches {
 class ace_frag{
 units[] = { };
@@ -40,12 +51,15 @@ author[] = {\"Nou\"}   ;
 version = \"3.5.0.0\" ;versionStr=\"3.5.0.0\";
 versionAr [] = {3,5, 0, 0};
 };
-};", output.trim());
+};",
+        output.trim()
+    );
 }
 
 #[test]
 fn test_preprocess_ifdef() {
-    let input = String::from("\
+    let input = String::from(
+        "\
 #define foo bar
 #define foobar whatever
 #undef foobar
@@ -58,38 +72,74 @@ fn test_preprocess_ifdef() {
 #else
     abc = 4321;
 #endif
-");
+",
+    );
 
-    let (output, _) = preprocess(input, None, &Vec::new()).unwrap();
+    let (output, _) = preprocess(input, None, &Vec::new(), |path| {
+        let mut content = String::new();
+        File::open(path)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        content
+    })
+    .unwrap();
 
     assert_eq!("abc = 1234;", output.trim());
 }
 
 #[test]
 fn test_preprocess_include() {
-    let input = String::from("\
+    let input = String::from(
+        "\
 #include \"\\x\\cba\\addons\\whatever\\include.h\"
-DOUBLES(foo,bar)\n");
+DOUBLES(foo,bar)\n",
+    );
 
-    let include = String::from("\
+    let include = String::from(
+        "\
 #define DOUBLES(x,y) x##_##y
-bar_foo\n");
+bar_foo\n",
+    );
 
-    let prefix = String::from("\
-\\x\\cba\\addons\\whatever\n");
+    let prefix = String::from(
+        "\
+         \\x\\cba\\addons\\whatever\n",
+    );
 
     let includedir = tempdir().unwrap();
 
     let addondir = includedir.path().join("whatever");
     create_dir(&addondir).unwrap();
 
-    File::create(addondir.join("include.h")).unwrap().write_all(include.as_bytes()).unwrap();
-    File::create(addondir.join("$PBOPREFIX$")).unwrap().write_all(prefix.as_bytes()).unwrap();
+    File::create(addondir.join("include.h"))
+        .unwrap()
+        .write_all(include.as_bytes())
+        .unwrap();
+    File::create(addondir.join("$PBOPREFIX$"))
+        .unwrap()
+        .write_all(prefix.as_bytes())
+        .unwrap();
 
-    let includepath = PathBuf::from(addondir.join("include.h")).canonicalize().unwrap();
+    let includepath = PathBuf::from(addondir.join("include.h"))
+        .canonicalize()
+        .unwrap();
 
     let includefolders = vec![PathBuf::from(includedir.path())];
-    let (output, info) = preprocess(input, Some(PathBuf::from("myfile")), &includefolders).unwrap();
+    let (output, info) = preprocess(
+        input,
+        Some(PathBuf::from("myfile")),
+        &includefolders,
+        |path| {
+            let mut content = String::new();
+            File::open(path)
+                .unwrap()
+                .read_to_string(&mut content)
+                .unwrap();
+            content
+        },
+    )
+    .unwrap();
 
     assert_eq!("bar_foo\n\nfoo_bar", output.trim());
     assert_eq!((2, Some(includepath)), info.line_origins[0]);
@@ -98,7 +148,7 @@ bar_foo\n");
 
 #[test]
 fn test_proprocess_bom() {
-    let input = String::from_utf8(vec![0xef,0xbb,0xbf]).unwrap() + "blub";
+    let input = String::from_utf8(vec![0xef, 0xbb, 0xbf]).unwrap() + "blub";
     let (output, _) = preprocess(input, None, &Vec::new()).unwrap();
 
     assert_eq!("blub", output.trim());
@@ -106,7 +156,8 @@ fn test_proprocess_bom() {
 
 #[test]
 fn test_preprocess_lineorigins() {
-    let input = String::from("\
+    let input = String::from(
+        "\
 #define TEST \"test\"/* foo
 
 bar */
@@ -116,7 +167,8 @@ class test\\
     4};
     bar[] = {1,2,3, \\
     4}jashdlasd;
-};\n");
+};\n",
+    );
 
     let (_, info) = preprocess(input, None, &Vec::new()).unwrap();
     assert_eq!(5, info.line_origins.len());

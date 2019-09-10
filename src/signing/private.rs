@@ -4,8 +4,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use openssl::bn::{BigNum, BigNumContext};
 use openssl::rsa::Rsa;
 
-use crate::{ArmakeError, BIPublicKey, BISign, BISignVersion, PBO};
 use crate::io::{ReadExt, WriteExt};
+use crate::{ArmakeError, BIPublicKey, BISign, BISignVersion, PBO};
 
 pub struct BIPrivateKey {
     pub name: String,
@@ -17,7 +17,7 @@ pub struct BIPrivateKey {
     pub dmp1: BigNum,
     pub dmq1: BigNum,
     pub iqmp: BigNum,
-    pub d: BigNum
+    pub d: BigNum,
 }
 
 impl BIPrivateKey {

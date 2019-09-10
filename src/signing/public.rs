@@ -3,15 +3,15 @@ use std::io::{Read, Write};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use openssl::bn::{BigNum, BigNumContext};
 
-use crate::{ArmakeError, BISign, PBO};
 use crate::error;
 use crate::io::{ReadExt, WriteExt};
+use crate::{ArmakeError, BISign, PBO};
 
 pub struct BIPublicKey {
     pub name: String,
     pub length: u32,
     pub exponent: u32,
-    pub n: BigNum
+    pub n: BigNum,
 }
 
 impl BIPublicKey {
@@ -43,32 +43,48 @@ impl BIPublicKey {
     // @todo: example
     /// Verifies a signature against this public key.
     pub fn verify(&self, pbo: &PBO, signature: &BISign) -> Result<(), ArmakeError> {
-        let (real_hash1, real_hash2, real_hash3) = super::generate_hashes(pbo, signature.version, self.length);
+        let (real_hash1, real_hash2, real_hash3) =
+            super::generate_hashes(pbo, signature.version, self.length);
 
         let mut ctx = BigNumContext::new().unwrap();
 
         let exponent = BigNum::from_u32(self.exponent).unwrap();
 
         let mut signed_hash1: BigNum = BigNum::new().unwrap();
-        signed_hash1.mod_exp(&signature.sig1, &exponent, &self.n, &mut ctx).unwrap();
+        signed_hash1
+            .mod_exp(&signature.sig1, &exponent, &self.n, &mut ctx)
+            .unwrap();
         let mut signed_hash2: BigNum = BigNum::new().unwrap();
-        signed_hash2.mod_exp(&signature.sig2, &exponent, &self.n, &mut ctx).unwrap();
+        signed_hash2
+            .mod_exp(&signature.sig2, &exponent, &self.n, &mut ctx)
+            .unwrap();
         let mut signed_hash3: BigNum = BigNum::new().unwrap();
-        signed_hash3.mod_exp(&signature.sig3, &exponent, &self.n, &mut ctx).unwrap();
+        signed_hash3
+            .mod_exp(&signature.sig3, &exponent, &self.n, &mut ctx)
+            .unwrap();
 
         if real_hash1 != signed_hash1 {
             let (s, r) = display_hashes(signed_hash1, real_hash1);
-            return Err(error!("Hash 1 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
+            return Err(error!(
+                "Hash 1 doesn't match\nSigned hash: {}\nReal hash:   {}",
+                s, r
+            ));
         }
 
         if real_hash2 != signed_hash2 {
             let (s, r) = display_hashes(signed_hash2, real_hash2);
-            return Err(error!("Hash 2 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
+            return Err(error!(
+                "Hash 2 doesn't match\nSigned hash: {}\nReal hash:   {}",
+                s, r
+            ));
         }
 
         if real_hash3 != signed_hash3 {
             let (s, r) = display_hashes(signed_hash3, real_hash3);
-            return Err(error!("Hash 3 doesn't match\nSigned hash: {}\nReal hash:   {}", s, r));
+            return Err(error!(
+                "Hash 3 doesn't match\nSigned hash: {}\nReal hash:   {}",
+                s, r
+            ));
         }
 
         Ok(())
