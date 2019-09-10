@@ -16,7 +16,14 @@ impl Rapify {
         path: Option<PathBuf>,
         includefolders: &[PathBuf],
     ) -> Result<(), ArmakeError> {
-        let config = Config::read(input, path, includefolders)?;
+        let config = Config::read(input, path, includefolders, |path| {
+            let mut content = String::new();
+            File::open(path)
+                .unwrap()
+                .read_to_string(&mut content)
+                .unwrap();
+            content
+        })?;
 
         config.write_rapified(output)?;
 

@@ -562,22 +562,21 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn read<I: Read>(
+    pub fn read<I: Read, F>(
         input: &mut I,
         path: Option<PathBuf>,
         includefolders: &[PathBuf],
-    ) -> Result<Config, ArmakeError> {
+        fileread: F,
+    ) -> Result<Config, ArmakeError>
+    where
+        F: Fn(&PathBuf) -> String,
+        F: Copy,
+    {
         let mut buffer = String::new();
         input.read_to_string(&mut buffer)?;
 
-        let (preprocessed, info) = preprocess(buffer.clone(), path.clone(), includefolders, |path| {
-            let mut content = String::new();
-            std::fs::File::open(path)
-                .unwrap()
-                .read_to_string(&mut content)
-                .unwrap();
-            content
-        })?;
+        let (preprocessed, info) =
+            preprocess(buffer.clone(), path.clone(), includefolders, fileread)?;
 
         let mut warnings: Vec<(usize, String, Option<&'static str>)> = Vec::new();
 
@@ -616,13 +615,18 @@ impl Config {
     /// `path` is the path to the input if it is known and is used for relative includes and error
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
-    pub fn from_string(
+    pub fn from_string<F>(
         input: String,
         path: Option<PathBuf>,
         includefolders: &[PathBuf],
-    ) -> Result<Config, ArmakeError> {
+        fileread: F,
+    ) -> Result<Config, ArmakeError>
+    where
+        F: Fn(&PathBuf) -> String,
+        F: Copy,
+    {
         let mut cursor = Cursor::new(input.into_bytes());
-        Self::read(&mut cursor, path, includefolders)
+        Self::read(&mut cursor, path, includefolders, fileread)
     }
 
     /// Reads the rapified config from input.

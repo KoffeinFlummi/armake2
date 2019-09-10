@@ -136,7 +136,14 @@ impl PBO {
                         .unwrap(),
                 )
             {
-                let config = Config::read(&mut file, Some(path.clone()), includefolders)?;
+                let config = Config::read(&mut file, Some(path.clone()), includefolders, |path| {
+                    let mut content = String::new();
+                    File::open(path)
+                        .unwrap()
+                        .read_to_string(&mut content)
+                        .unwrap();
+                    content
+                })?;
                 let cursor = config.to_cursor()?;
 
                 files.insert(name, cursor);

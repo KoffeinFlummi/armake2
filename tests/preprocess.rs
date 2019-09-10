@@ -149,7 +149,15 @@ bar_foo\n",
 #[test]
 fn test_proprocess_bom() {
     let input = String::from_utf8(vec![0xef, 0xbb, 0xbf]).unwrap() + "blub";
-    let (output, _) = preprocess(input, None, &Vec::new()).unwrap();
+    let (output, _) = preprocess(input, None, &Vec::new(), |path| {
+        let mut content = String::new();
+        File::open(path)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        content
+    })
+    .unwrap();
 
     assert_eq!("blub", output.trim());
 }
@@ -170,7 +178,15 @@ class test\\
 };\n",
     );
 
-    let (_, info) = preprocess(input, None, &Vec::new()).unwrap();
+    let (_, info) = preprocess(input, None, &Vec::new(), |path| {
+        let mut content = String::new();
+        File::open(path)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        content
+    })
+    .unwrap();
     assert_eq!(5, info.line_origins.len());
     assert_eq!(8, info.line_origins[2].0);
 }
