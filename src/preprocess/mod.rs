@@ -2,8 +2,6 @@
 
 use std::clone::Clone;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
 use std::iter::Sum;
 use std::path::PathBuf;
 
