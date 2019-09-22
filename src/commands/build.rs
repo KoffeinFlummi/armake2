@@ -44,7 +44,6 @@ impl Command for Build {
                 clap::Arg::with_name("header")
                     .help("Headers to add into the PBO")
                     .short("h")
-                    .short("e")
                     .multiple(true)
                     .takes_value(true),
             )
@@ -67,13 +66,24 @@ impl Command for Build {
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {
         let input = args.value_of("source").unwrap();
         let mut output = crate::get_output(args.value_of("target"))?;
-        let headers: Vec<_> = args.values_of("header").unwrap().collect();
-        let excludes: Vec<_> = args.values_of("exclude").unwrap().collect();
-        let includes: Vec<_> = args
-            .values_of("include")
-            .unwrap()
-            .map(PathBuf::from)
-            .collect();
+        let headers: Vec<_> = if let Some(values) = args.values_of("header") {
+            values.collect()
+        } else {
+            Vec::new()
+        };
+        let excludes: Vec<_> = if let Some(values) = args.values_of("exclude") {
+            values.collect()
+        } else {
+            Vec::new()
+        };
+        let includes: Vec<_> = if let Some(values) = args.values_of("includes") {
+            values.collect()
+        } else {
+            Vec::new()
+        }
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
         Build::cmd_build(
             PathBuf::from(input),
             &mut output,

@@ -396,8 +396,7 @@ impl ConfigClass {
                                 let buffer: Box<[u8]> =
                                     vec![0; c.rapified_length()].into_boxed_slice();
                                 let mut cursor: Cursor<Box<[u8]>> = Cursor::new(buffer);
-                                class_offset += c
-                                    .write_rapified(&mut cursor, class_offset)?;
+                                class_offset += c.write_rapified(&mut cursor, class_offset)?;
                                 class_bodies.push(cursor);
                             }
                         }

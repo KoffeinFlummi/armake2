@@ -1,6 +1,6 @@
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::fs::File;
 
 use crate::{ArmakeError, Command, Config};
 
@@ -54,11 +54,14 @@ impl Command for Rapify {
     fn run(&self, args: &clap::ArgMatches) -> Result<(), ArmakeError> {
         let mut input = crate::get_input(args.value_of("source"))?;
         let mut output = crate::get_output(args.value_of("target"))?;
-        let includes: Vec<_> = args
-            .values_of("include")
-            .unwrap()
-            .map(PathBuf::from)
-            .collect();
+        let includes: Vec<_> = if let Some(values) = args.values_of("includes") {
+            values.collect()
+        } else {
+            Vec::new()
+        }
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
         Rapify::cmd_rapify(
             &mut input,
             &mut output,
