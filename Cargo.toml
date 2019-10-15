@@ -29,7 +29,7 @@ harness = false
 [dependencies]
 byteorder = "1"
 clap = "2.33"
-rust-crypto = "0.2"
+sha-1 = "0.8"
 colored = "1.8"
 docopt = "1"
 linked-hash-map = "0.5.2"

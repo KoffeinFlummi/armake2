@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use crypto::{digest::Digest, sha1::Sha1};
+use sha1::{Sha1, Digest};
 use linked_hash_map::LinkedHashMap;
 use regex::Regex;
 
@@ -244,7 +244,9 @@ impl PBO {
         }
 
         output.write_all(&[0])?;
-        output.write_all(h.result_str().as_bytes())?;
+
+        let result = h.result();
+        output.write_all(&result)?;
 
         Ok(())
     }
