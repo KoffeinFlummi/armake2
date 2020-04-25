@@ -350,11 +350,14 @@ where
                             fileread,
                         )
                         .map_err(|e| {
-                            ArmakeError::PREPROCESS(PreprocessError {
-                                message: "Failed to process include".to_string(),
-                                path: Some(path),
-                                source: Box::new(e),
-                            })
+                            match e {
+                                ArmakeError::PREPROCESS(p) => ArmakeError::PREPROCESS(p),
+                                _ => ArmakeError::PREPROCESS(PreprocessError {
+                                    message: "Failed to process include".to_string(),
+                                    path: Some(path),
+                                    source: Box::new(e),
+                                })
+                            }
                         })?;
 
                         info.import_stack.pop();
