@@ -4,9 +4,9 @@ use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use sha1::{Sha1, Digest};
 use linked_hash_map::LinkedHashMap;
 use regex::Regex;
+use sha1::{Digest, Sha1};
 
 use crate::io::{ReadExt, WriteExt};
 use crate::{binarize, ArmakeError, Config};
@@ -20,6 +20,7 @@ pub use header::{PBOHeader, PackingMethod};
 pub struct PBO {
     pub files: LinkedHashMap<String, Cursor<Box<[u8]>>>,
     pub header_extensions: HashMap<String, String>,
+    pub extension_order: Vec<String>,
     pub headers: Vec<PBOHeader>,
     /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
     /// and included in the output
@@ -32,6 +33,7 @@ impl PBO {
         let mut headers: Vec<PBOHeader> = Vec::new();
         let mut first = true;
         let mut header_extensions: HashMap<String, String> = HashMap::new();
+        let mut extension_order: Vec<String> = Vec::new();
 
         loop {
             let header = PBOHeader::read(input)?;
@@ -48,7 +50,8 @@ impl PBO {
                         break;
                     }
 
-                    header_extensions.insert(s, input.read_cstring()?);
+                    header_extensions.insert(s.clone(), input.read_cstring()?);
+                    extension_order.push(s);
                 }
             } else if header.filename == "" {
                 break;
@@ -73,6 +76,7 @@ impl PBO {
         Ok(PBO {
             files,
             header_extensions,
+            extension_order,
             headers,
             checksum: Some(checksum),
         })
@@ -175,6 +179,13 @@ impl PBO {
 
         Ok(PBO {
             files,
+            extension_order: {
+                let mut order = Vec::new();
+                for he in &header_extensions {
+                    order.push(he.0.clone());
+                }
+                order
+            },
             header_extensions,
             headers: Vec::new(),
             checksum: None,
@@ -200,13 +211,13 @@ impl PBO {
             headers.write_cstring(prefix)?;
         }
 
-        for (key, value) in self.header_extensions.iter() {
+        for key in &self.extension_order {
             if key == "prefix" {
                 continue;
             }
 
             headers.write_cstring(key)?;
-            headers.write_cstring(value)?;
+            headers.write_cstring(self.header_extensions.get(key).unwrap())?;
         }
         headers.write_cstring("".to_string())?;
 
@@ -236,16 +247,16 @@ impl PBO {
         let mut h = Sha1::new();
 
         output.write_all(headers.get_ref())?;
-        h.input(headers.get_ref());
+        h.update(headers.get_ref());
 
         for (_, cursor) in &files_sorted {
             output.write_all(cursor.get_ref())?;
-            h.input(cursor.get_ref());
+            h.update(cursor.get_ref());
         }
 
         output.write_all(&[0])?;
 
-        let result = h.result();
+        let result = h.finalize();
         output.write_all(&result)?;
 
         Ok(())

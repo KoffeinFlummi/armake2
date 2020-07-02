@@ -13,7 +13,7 @@ use winreg::RegKey;
 
 use crate::ArmakeError;
 
-use crate::error;
+use crate::aerror;
 use crate::error::IOPathError;
 
 #[cfg(windows)]
@@ -52,14 +52,14 @@ fn create_temp_directory(name: &str) -> Result<PathBuf, ArmakeError> {
 /// Binarizes the given path with BI's binarize.exe (Only available on Windows).
 pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, ArmakeError> {
     if !cfg!(windows) {
-        return Err(error!(
+        return Err(aerror!(
             "binarize.exe is only available on windows. Use rapify to binarize configs."
         ));
     }
 
     let binarize_exe = find_binarize_exe()?;
     if !binarize_exe.exists() {
-        return Err(error!(
+        return Err(aerror!(
             "BI's binarize.exe found in registry, but doesn't exist."
         ));
     }
@@ -103,7 +103,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, ArmakeError> {
             ""
         };
 
-        return Err(error!("{}{}", msg, outputhint));
+        return Err(aerror!("{}{}", msg, outputhint));
     }
 
     let result_path = tempdir.join(input.strip_prefix(&input_dir).unwrap());
@@ -118,7 +118,7 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, ArmakeError> {
             })
         })?;
         file.read_to_end(&mut buffer)
-            .or_else(|_| Err(error!("Failed to read binarize.exe output")))?;
+            .or_else(|_| Err(aerror!("Failed to read binarize.exe output")))?;
     }
 
     remove_dir_all(&tempdir).map_err(|source| {

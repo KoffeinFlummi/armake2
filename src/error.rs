@@ -50,12 +50,12 @@ pub enum ArmakeError {
 }
 
 #[macro_export]
-macro_rules! error {
+macro_rules! aerror {
     ($e:expr) => {
         ArmakeError::GENERIC($e.to_string())
     };
     ($e:expr, $($p:expr),*) => {
-        error!(format!($e, $($p,)*))
+        aerror!(format!($e, $($p,)*))
     };
 }
 

@@ -35,6 +35,3 @@ pub use derapify::Derapify;
 
 mod preprocess;
 pub use preprocess::Preprocess;
-
-#[cfg(feature = "signing")]
-pub mod signing;

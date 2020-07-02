@@ -184,7 +184,7 @@ impl ConfigArray {
                     ConfigArray::read_rapified(input)?,
                 ));
             } else {
-                return Err(error!("Unrecognized array element type: {}", element_type));
+                return Err(aerror!("Unrecognized array element type: {}", element_type));
             }
         }
 
@@ -463,7 +463,7 @@ impl ConfigClass {
                         ConfigEntry::IntEntry(input.read_i32::<LittleEndian>()?),
                     ));
                 } else {
-                    return Err(error!("Unrecognized variable entry subtype: {}.", subtype));
+                    return Err(aerror!("Unrecognized variable entry subtype: {}.", subtype));
                 }
             } else if entry_type == 2 || entry_type == 5 {
                 if entry_type == 5 {
@@ -486,7 +486,7 @@ impl ConfigClass {
 
                 entries.push((name.clone(), ConfigEntry::ClassEntry(class_entry)));
             } else {
-                return Err(error!("Unrecognized class entry type: {}.", entry_type));
+                return Err(aerror!("Unrecognized class entry type: {}.", entry_type));
             }
         }
 
@@ -576,7 +576,7 @@ impl Config {
         let result = config_grammar::config(&preprocessed, &mut warnings).map_err(|source| {
             ArmakeError::CONFIG(ConfigParseError {
                 path: Some(
-                    path.unwrap_or_else(|| PathBuf::new())
+                    path.unwrap_or_else(PathBuf::new)
                         .to_string_lossy()
                         .to_string(),
                 ),
@@ -585,20 +585,21 @@ impl Config {
             })
         })?;
 
-        // for w in warnings {
+        for w in warnings {
+            // if !warning_suppressed(w.2) {
+            let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
+            let file = info.line_origins[std::cmp::min(line, info.line_origins.len()) - 1]
+                .1
+                .as_ref()
+                .map(|p| p.to_str().unwrap().to_string());
+            line =
+                info.line_origins[std::cmp::min(line, info.line_origins.len()) - 1].0 as usize + 1;
 
-        //     let location = if !warning_suppressed(w.2) {
-        //         let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
-        //         let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
-        //         line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
-
-        //         (file, Some(line as u32))
-        //     } else {
-        //         (None, None)
-        //     };
-
-        //     warning(w.1, w.2, location);
-        // }
+            warn!("[{:?}:{}] {}", file, line as u32, w.1);
+            // } else {
+            //     (None, None)
+            // };
+        }
 
         Ok(result)
     }
@@ -630,7 +631,7 @@ impl Config {
         reader.read_exact(&mut buffer)?;
 
         if &buffer != b"\0raP" {
-            return Err(error!("File doesn't seem to be a rapified config."));
+            return Err(aerror!("File doesn't seem to be a rapified config."));
         }
 
         Ok(Config {

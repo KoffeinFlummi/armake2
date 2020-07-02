@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 pub mod error;
 pub use crate::error::ArmakeError;
 
@@ -17,11 +20,6 @@ pub mod preprocess;
 
 pub mod io;
 use crate::io::{Input, Output};
-
-#[cfg(feature = "signing")]
-mod signing;
-#[cfg(feature = "signing")]
-pub use signing::{BIPrivateKey, BIPublicKey, BISign, BISignVersion};
 
 use std::fs::File;
 use std::io::{stdin, stdout, Cursor, Read};

@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use crate::ArmakeError;
 
-use crate::error;
+use crate::aerror;
 
 pub fn read_prefix(prefix_path: &Path) -> String {
     let mut content = String::new();
@@ -115,12 +115,12 @@ pub fn find_include_file(
 
         if !absolute.is_file() {
             match origin {
-                Some(origin_path) => Err(error!(
+                Some(origin_path) => Err(aerror!(
                     "File \"{}\" included from \"{}\" not found.",
                     include_path,
                     origin_path.to_str().unwrap().to_string()
                 )),
-                None => Err(error!("Included file \"{}\" not found.", include_path)),
+                None => Err(aerror!("Included file \"{}\" not found.", include_path)),
             }
         } else {
             Ok(absolute)
@@ -133,12 +133,12 @@ pub fn find_include_file(
         }
 
         match origin {
-            Some(origin_path) => Err(error!(
+            Some(origin_path) => Err(aerror!(
                 "File \"{}\" included from \"{}\" not found.",
                 include_path,
                 origin_path.to_str().unwrap().to_string()
             )),
-            None => Err(error!("Included file \"{}\" not found.", include_path)),
+            None => Err(aerror!("Included file \"{}\" not found.", include_path)),
         }
     }
 }
