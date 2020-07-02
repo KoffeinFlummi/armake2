@@ -595,7 +595,12 @@ impl Config {
             line =
                 info.line_origins[std::cmp::min(line, info.line_origins.len()) - 1].0 as usize + 1;
 
-            warn!("[{:?}:{}] {}", file, line as u32, w.1);
+            if let Some(f) = file {
+                let clean = f.trim_start_matches("\\\\?\\").trim_start_matches(&std::env::current_dir().unwrap().display().to_string());
+                warn!("[{:?}:{}] {}", clean, line as u32, w.1);
+            } else {
+                warn!("[?:{}] {}", line as u32, w.1);
+            }
             // } else {
             //     (None, None)
             // };
