@@ -1,10 +1,11 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
-use armake2::config::*;
+use armake2::Config;
 
 #[test]
 fn config_read() {
-    let input = String::from("\
+    let input = String::from(
+        "\
 #define VERSIONAR {3,5, 0, 0}
 #define FOO(x  , y ) #x z x_y x##_##y
 #define QUOTE(x) #x
@@ -21,7 +22,8 @@ class CfgPatches {
         version = QUOTE(3.5.0.0) ;versionStr=\"3.5.0.0\";
         versionAr [] = VERSIONAR;
     };
-};");
+};",
+    );
     let mut cursor = Cursor::new(input);
 
     let mut config = Config::read(&mut cursor, None, &Vec::new()).unwrap();
@@ -33,7 +35,8 @@ class CfgPatches {
 
     let output = config.to_string().unwrap();
 
-    assert_eq!("class CfgPatches {
+    assert_eq!(
+        "class CfgPatches {
     class ace_frag {
         units[] = {};
         weapons[] = {};
@@ -44,5 +47,7 @@ class CfgPatches {
         versionStr = \"3.5.0.0\";
         versionAr[] = {3, 5, 0, 0};
     };
-};", output.trim());
+};",
+        output.trim()
+    );
 }

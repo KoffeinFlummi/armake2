@@ -1,12 +1,12 @@
 [package]
 name = "armake2"
-version = "0.3.0"
+version = "0.4.1"
 description = "Arma 3 modding tools"
 license = "GPL-2.0-or-later"
 categories = ["command-line-utilities"]
-authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>"]
-homepage = "https://github.com/KoffeinFlummi/armake2"
-repository = "https://github.com/KoffeinFlummi/armake2"
+authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>", "Brett Mayson <brett@mayson.io>"]
+homepage = "https://github.com/synixebrett/armake2"
+repository = "https://github.com/synixebrett/armake2"
 build = "build.rs"
 readme = "README.md"
 edition = "2018"
@@ -23,22 +23,23 @@ name = "config"
 harness = false
 
 [dependencies]
-colored = "1.6"
-time = "0.1"
+log = "0.4"
 byteorder = "1"
+clap = "2.33"
+sha-1 = "0.9"
 docopt = "1"
-serde = { version = "1.0", features = ["derive"] }
-openssl = "0.10"
-linked-hash-map = "0.5.1"
+linked-hash-map = "0.5"
 regex = "1"
+serde = { version = "1.0", features = ["derive"] }
+time = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-ansi_term = "0.11"
-winreg = "0.6.0"
+ansi_term = "0.12"
+winreg = "0.7"
 
 [build-dependencies]
 peg = "0.5"
 
 [dev-dependencies]
 tempfile = "3"
-criterion = "0.2"
+criterion = "0.3"

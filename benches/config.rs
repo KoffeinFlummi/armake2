@@ -1,12 +1,14 @@
-use std::io::{Cursor};
+use std::io::Cursor;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 
-use armake2::config::*;
+use armake2::Config;
 
 fn bench_config(c: &mut Criterion) {
-    c.bench_function("config", |b| b.iter(|| {
-        let input = String::from("\
+    c.bench_function("config", |b| {
+        b.iter(|| {
+            let input = String::from(
+                "\
 #define VERSIONAR {3,5, 0, 0}
 #define FOO(x  , y ) #x z x_y x##_##y
 #define QUOTE(x) #x
@@ -23,11 +25,13 @@ class CfgPatches {
         version = QUOTE(3.5.0.0) ;versionStr=\"3.5.0.0\";
         versionAr [] = VERSIONAR;
     };
-};");
-        let mut cursor = Cursor::new(input);
+};",
+            );
+            let mut cursor = Cursor::new(input);
 
-        Config::read(&mut cursor, None, &Vec::new()).unwrap();
-    }));
+            Config::read(&mut cursor, None, &Vec::new()).unwrap();
+        })
+    });
 }
 
 criterion_group!(benches, bench_config);
