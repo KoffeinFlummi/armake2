@@ -29,7 +29,7 @@ byteorder = "1"
 docopt = "1"
 serde = { version = "1.0", features = ["derive"] }
 openssl = "0.10"
-linked-hash-map = "0.5.1"
+linked-hash-map = "0.5"
 regex = "1"
 
 [target.'cfg(windows)'.dependencies]
