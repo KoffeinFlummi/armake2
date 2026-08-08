@@ -12,7 +12,7 @@ use crate::error::*;
 
 pub mod preprocess_grammar {
     #![allow(missing_docs)]
-    include!(concat!(env!("OUT_DIR"), "/preprocess_grammar.rs"));
+    include!(concat!(env!("OUT_DIR"), "/preprocess.rs"));
 }
 
 /// Macro definition
