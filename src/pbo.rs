@@ -425,15 +425,25 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf, force: bool) -> Resul
     }
 
     for file_name in pbo.files.keys() {
-        let data = pbo.file_data(file_name)?.unwrap();
+        let data = match pbo.file_data(file_name) {
+            Ok(Some(data)) => data,
+            Ok(None) => continue,
+            Err(e) => {
+                warning(format!("Skipping \"{}\": {}", file_name, e), None, (None, None));
+                continue;
+            }
+        };
         // @todo: windows
         let path = output.join(PathBuf::from(file_name.replace("\\", pathsep())));
         if !force && path.exists() {
             return Err(error!("Target file \"{}\" already exists. Use --force to overwrite.", path.display()));
         }
-        create_dir_all(path.parent().unwrap()).prepend_error("Failed to create output folder:")?;
-        let mut file = File::create(path).prepend_error("Failed to open output file:")?;
-        file.write_all(&data).prepend_error("Failed to write output file:")?;
+        let written = create_dir_all(path.parent().unwrap_or(&output)).prepend_error("Failed to create output folder:")
+            .and_then(|_| File::create(&path).prepend_error("Failed to open output file:"))
+            .and_then(|mut file| file.write_all(&data).prepend_error("Failed to write output file:"));
+        if let Err(e) = written {
+            warning(format!("Skipping \"{}\": {}", file_name, e), None, (None, None));
+        }
     }
 
     Ok(())
