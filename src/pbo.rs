@@ -72,6 +72,48 @@ impl PBOHeader {
     }
 }
 
+/// Packing method of entries compressed with Bohemia's LZSS variant ("Cprs").
+const PACKING_COMPRESSED: u32 = 0x4370_7273;
+
+/// Decompresses a "Cprs" PBO entry: groups of 8 items led by a flag byte (LSB first),
+/// bit set = literal byte, bit clear = 2-byte back reference (12 bit offset, 4 bit length - 3).
+/// The window starts out filled with spaces; the 4 byte checksum after the data is ignored.
+fn lzss_decompress(data: &[u8], original_size: usize) -> Result<Vec<u8>, Error> {
+    let truncated = || error!("Truncated compressed PBO entry.");
+    let mut out: Vec<u8> = Vec::with_capacity(original_size);
+    let mut pos = 0;
+
+    while out.len() < original_size {
+        let flags = *data.get(pos).ok_or_else(truncated)?;
+        pos += 1;
+
+        for bit in 0..8 {
+            if out.len() >= original_size { break; }
+
+            if flags & (1 << bit) != 0 {
+                out.push(*data.get(pos).ok_or_else(truncated)?);
+                pos += 1;
+            } else {
+                let b1 = *data.get(pos).ok_or_else(truncated)? as usize;
+                let b2 = *data.get(pos + 1).ok_or_else(truncated)? as usize;
+                pos += 2;
+
+                let offset = b1 | ((b2 & 0xF0) << 4);
+                let length = (b2 & 0x0F) + 3;
+                if offset == 0 { return Err(error!("Invalid back reference in compressed PBO entry.")); }
+
+                for _ in 0..length {
+                    let byte = if out.len() >= offset { out[out.len() - offset] } else { b' ' };
+                    out.push(byte);
+                }
+            }
+        }
+    }
+
+    out.truncate(original_size);
+    Ok(out)
+}
+
 fn matches_glob(s: &str, pattern: &str) -> bool {
     if let Some(index) = pattern.find('*') {
         if s[..index] != pattern[..index] { return false; }
@@ -283,6 +325,22 @@ impl PBO {
         Ok(())
     }
 
+    /// Returns the contents of a file, decompressing it if the PBO stores it compressed.
+    /// `files` keeps the stored bytes, because signing hashes those.
+    pub fn file_data(&self, name: &str) -> Result<Option<Vec<u8>>, Error> {
+        let cursor = match self.files.get(name) {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
+        match self.headers.iter().find(|h| h.filename == name) {
+            Some(h) if h.packing_method == PACKING_COMPRESSED =>
+                lzss_decompress(cursor.get_ref(), h.original_size as usize)
+                    .prepend_error(&format!("Failed to decompress \"{}\":", name)).map(Some),
+            _ => Ok(Some(cursor.get_ref().to_vec())),
+        }
+    }
+
     /// Returns the PBO as a `Cursor`.
     pub fn to_cursor(&self) -> Result<Cursor<Vec<u8>>, Error> {
         let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
@@ -337,9 +395,9 @@ pub fn cmd_inspect<I: Read>(input: &mut I) -> Result<(), Error> {
 pub fn cmd_cat<I: Read, O: Write>(input: &mut I, output: &mut O, name: &str) -> Result<(), Error> {
     let pbo = PBO::read(input).prepend_error("Failed to read PBO:")?;
 
-    match pbo.files.get(name) {
-        Some(cursor) => {
-            output.write_all(cursor.get_ref()).prepend_error("Failed to write output:")?;
+    match pbo.file_data(name)? {
+        Some(data) => {
+            output.write_all(&data).prepend_error("Failed to write output:")?;
         },
         None => {
             eprintln!("not found"); // @todo
@@ -366,7 +424,8 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf, force: bool) -> Resul
         }
     }
 
-    for (file_name, cursor) in pbo.files.iter() {
+    for file_name in pbo.files.keys() {
+        let data = pbo.file_data(file_name)?.unwrap();
         // @todo: windows
         let path = output.join(PathBuf::from(file_name.replace("\\", pathsep())));
         if !force && path.exists() {
@@ -374,7 +433,7 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf, force: bool) -> Resul
         }
         create_dir_all(path.parent().unwrap()).prepend_error("Failed to create output folder:")?;
         let mut file = File::create(path).prepend_error("Failed to open output file:")?;
-        file.write_all(cursor.get_ref()).prepend_error("Failed to write output file:")?;
+        file.write_all(&data).prepend_error("Failed to write output file:")?;
     }
 
     Ok(())
