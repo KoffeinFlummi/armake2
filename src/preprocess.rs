@@ -108,9 +108,8 @@ peg::parser!{
             t
         }
 
-        // @todo: comments after directives (same line)
         rule line() -> Line =
-            [' ' | '\t']* d:directive() cmts:(comment_token()*) [' ' | '\t']* {
+            [' ' | '\t']* d:directive() cmts:(([' ' | '\t']* c:comment_token() { c })*) [' ' | '\t']* {
                 Line::DirectiveLine(d, cmts.iter().sum())
             } /
             [' ' | '\t']* t:tokens() { Line::TokenLine(t) }

@@ -122,3 +122,20 @@ class test\\
     assert_eq!(5, info.line_origins.len());
     assert_eq!(8, info.line_origins[2].0);
 }
+
+#[test]
+fn test_preprocess_directive_trailing_comments() {
+    let dir = tempdir().unwrap();
+    File::create(dir.path().join("inc.hpp")).unwrap().write_all(b"inc\n").unwrap();
+    File::create(dir.path().join("f.cpp")).unwrap();
+    let input = String::from("\
+#include \"inc.hpp\" /* c */
+#define Y 1   // c
+#ifdef Y\t// c
+y=Y;
+#endif
+");
+    let (output, _) = preprocess(input, Some(dir.path().join("f.cpp")), &vec![dir.path().to_path_buf()]).unwrap();
+    assert!(output.contains("inc"), "{:?}", output);
+    assert!(output.contains("y=1"), "{:?}", output); // trailing spaces from the #define value are kept
+}
