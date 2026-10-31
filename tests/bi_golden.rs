@@ -19,7 +19,7 @@ fn golden(name: &str) {
 }
 
 #[test] fn golden_g() { golden("g"); }
-#[test] #[ignore] fn golden_w1() { golden("w1"); }
+#[test] fn golden_w1() { golden("w1"); }
 #[test] fn golden_us() { golden("us"); }
 #[test] #[ignore] fn golden_c51() { golden("c51"); }
 #[test] #[ignore] fn golden_rap() { golden("rap"); }

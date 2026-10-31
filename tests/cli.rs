@@ -41,3 +41,30 @@ fn unquoted_before_brace() {
     assert_eq!(code, 0);
     assert!(out.contains("x = \"foo\";"), "{}", out);
 }
+
+fn rapify_str(src: &str) -> (i32, String) {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "config.cpp", src);
+    let (code, _, err) = armake2(&["rapify", "config.cpp", "c.bin"], dir.path());
+    (code, err)
+}
+
+#[test]
+fn warning_on_line_one_no_panic() {
+    let (code, err) = rapify_str("class A { x = foo; };\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(err.contains(":1:") && err.contains("unquoted-string"), "{}", err);
+}
+
+#[test]
+fn warning_on_line_two_location() {
+    let (code, err) = rapify_str("\nclass A { x = foo; };\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(err.contains(":2:"), "{}", err);
+}
+
+#[test]
+fn warning_printed_once() {
+    let (_, err) = rapify_str("class A { x = foo; };\n");
+    assert_eq!(err.matches("unquoted-string").count(), 1, "{}", err);
+}

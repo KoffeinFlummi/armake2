@@ -623,12 +623,17 @@ impl Config {
 
         let result = ConfigParseErrorExt::format_error(config_grammar::config(&preprocessed, &mut warnings), &info, &preprocessed);
 
+        // PEG backtracking runs rule actions more than once; report each warning once.
+        let mut seen = std::collections::HashSet::new();
+        warnings.retain(|w| seen.insert((w.0, w.1.clone())));
+
         for w in warnings {
 
             let location = if !warning_suppressed(w.2) {
                 let mut line = preprocessed[..w.0].chars().filter(|c| c == &'\n').count();
-                let file = info.line_origins[min(line, info.line_origins.len()) - 1].1.as_ref().map(|p| p.to_str().unwrap().to_string());
-                line = info.line_origins[min(line, info.line_origins.len()) - 1].0 as usize + 1;
+                let idx = min(line, info.line_origins.len().saturating_sub(1));  // origins are 1-based line numbers
+                let file = info.line_origins.get(idx).and_then(|o| o.1.as_ref()).map(|p| p.to_str().unwrap().to_string());
+                line = info.line_origins.get(idx).map_or(line + 1, |o| o.0 as usize);
 
                 (file, Some(line as u32))
             } else {
