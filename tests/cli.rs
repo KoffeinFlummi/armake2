@@ -117,6 +117,30 @@ fn macro_arity_warns() {
 }
 
 #[test]
+fn macro_arity_warning_has_location() {
+    let (code, err) = rapify_str("#define QUOTE(x) #x\n\nclass A { t = QUOTE(a,b); };\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(err.contains("config.cpp:3") && err.contains("macro-arg-count"), "{}", err);
+    // the empty value it expands to is not reported again as an unquoted string
+    assert!(!err.contains("unquoted-string"), "{}", err);
+}
+
+#[test]
+fn macro_arity_in_inactive_block_silent() {
+    let (code, err) = rapify_str("#define QUOTE(x) #x\n#ifdef NOPE\nt = QUOTE(a,b);\n#endif\nx = 1;\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(!err.contains("macro-arg-count"), "{}", err);
+}
+
+#[test]
+fn eval_error_without_unquoted_warning() {
+    let (code, err) = rapify_str("a = __EVAL(1 > 0);\n");
+    assert!(code != 0 && code != 101, "code {} {}", code, err);
+    assert!(err.contains("not supported"), "{}", err);
+    assert!(!err.contains("unquoted-string"), "{}", err);
+}
+
+#[test]
 fn object_like_macro_no_arity_warning() {
     let (code, err) = rapify_str("#define FOO bar\nclass A { t = FOO(1); };\n");
     assert_eq!(code, 0, "{}", err);

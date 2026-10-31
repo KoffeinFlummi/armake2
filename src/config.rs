@@ -69,7 +69,11 @@ peg::parser! {
 
         rule unquoted_string() -> String = pos:position!() s:$((![';' | '}' | '\r' | '\n'] [_])*) {
             let result = s.to_string().trim().to_string();
-            warnings.push((pos, format!("String value \"{}\" is not quoted properly.", result), Some("unquoted-string")));
+            // an empty value comes from a macro that expanded to nothing (e.g. an argument-count
+            // mismatch, which has its own warning); CfgConvert makes it "" as well
+            if !result.is_empty() {
+                warnings.push((pos, format!("String value \"{}\" is not quoted properly.", result), Some("unquoted-string")));
+            }
             result
         }
 
@@ -681,7 +685,8 @@ impl Config {
         let mut ctx = EvalCtx::default();
         let parsed = config_grammar::config(&preprocessed, &mut warnings, &mut ctx);
         let result = match ctx.error.take() {
-            Some(e) => Err(e),
+            // the warnings were raised by the fallback rules tried after the failed __EVAL/__EXEC
+            Some(e) => return Err(e),
             _ => ConfigParseErrorExt::format_error(parsed, &info, &preprocessed),
         };
 

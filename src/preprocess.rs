@@ -193,6 +193,11 @@ pub struct PreprocessInfo {
     import_stack: Vec<PathBuf>
 }
 
+thread_local! {
+    /// Argument-count mismatches found while resolving the current line, reported with its location.
+    static ARG_COUNT_MISMATCHES: std::cell::RefCell<Vec<String>> = std::cell::RefCell::new(Vec::new());
+}
+
 fn parse_macro(input: &str) -> Macro {
     let without_original: Macro = preprocess_grammar::macro_proper(input).unwrap();
 
@@ -311,7 +316,8 @@ impl Macro {
                     let expected = def.parameters.as_ref().map_or(0, |p| p.len());
                     let got = if expected == 0 && args.len() == 1 && args[0].trim().is_empty() { 0 } else { args.len() };
                     if got != expected {
-                        warning(format!("Macro \"{}\" expects {} argument(s), got {}", self.name, expected, got), Some("macro-arg-count"), (None, None));
+                        let msg = format!("Macro \"{}\" expects {} argument(s), got {}", self.name, expected, got);
+                        ARG_COUNT_MISMATCHES.with(|m| m.borrow_mut().push(msg));
                         return Ok(if self.quoted {
                             vec![Token::NewlineToken("\"\"".to_string(), 0)]
                         } else {
@@ -660,7 +666,9 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
             },
             Line::TokenLine(tokens) => {
                 let stack: Vec<Definition> = Vec::new();
-                let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:")?;
+                let resolved = Macro::resolve_all(&tokens, &definition_map, &stack).prepend_error("Failed to resolve macros:");
+                let mismatches = ARG_COUNT_MISMATCHES.with(|m| std::mem::take(&mut *m.borrow_mut()));
+                let resolved = resolved?;
 
                 let (mut result, newlines) = Token::concat(&resolved);
                 result = result.replace("\r\n", "\n");
@@ -670,6 +678,11 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                 result = result.replace("\\\n", "");
 
                 if level > level_true { continue; }
+
+                let file = origin.as_ref().map(|p| p.display().to_string());
+                for msg in mismatches {
+                    warning(msg, Some("macro-arg-count"), (file.clone(), Some(original_lineno)));
+                }
 
                 output += &result;
                 output += "\n";
