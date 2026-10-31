@@ -125,7 +125,7 @@ fn generate_hashes(pbo: &PBO, version: BISignVersion, length: u32) -> (BigNum, B
     h.update(hash1).unwrap();
     h.update(&*namehash(pbo)).unwrap();
     if let Some(prefix) = pbo.header_extensions.get("prefix") {
-        h.update(prefix.as_bytes()).unwrap();
+        h.update(&pbo.extension_bytes(prefix)).unwrap();
         if !prefix.ends_with('\\') {
             h.update(b"\\").unwrap();
         }
@@ -136,7 +136,7 @@ fn generate_hashes(pbo: &PBO, version: BISignVersion, length: u32) -> (BigNum, B
     h.update(&*filehash(pbo, version)).unwrap();
     h.update(&*namehash(pbo)).unwrap();
     if let Some(prefix) = pbo.header_extensions.get("prefix") {
-        h.update(prefix.as_bytes()).unwrap();
+        h.update(&pbo.extension_bytes(prefix)).unwrap();
         if !prefix.ends_with('\\') {
             h.update(b"\\").unwrap();
         }

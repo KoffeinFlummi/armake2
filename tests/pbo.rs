@@ -85,3 +85,17 @@ fn prefix_key_value_form() {
     assert_eq!(pbo.header_extensions["prefix"], "my\\mod");
     assert_eq!(pbo.header_extensions["version"], "a=b");
 }
+
+#[test]
+fn roundtrip_non_utf8_prefix() {
+    // same length as "mymod", so no offsets change; 0x97 is not valid UTF-8
+    let mut original = fs::read(sign_dir().join("nonutf8.pbo")).unwrap();
+    let at = original.windows(5).position(|w| w == b"mymod").unwrap();
+    original[at..at + 5].copy_from_slice(b"my\x97od");
+    let pbo = PBO::read(&mut &original[..]).unwrap();
+    assert_eq!(pbo.header_extensions["prefix"], "my\u{2014}od\\testsig");
+    let mut out = Vec::new();
+    pbo.write(&mut out).unwrap();
+    // everything but the SHA-1 trailer, which the edit made stale
+    assert_eq!(out[..out.len() - 20], original[..original.len() - 20]);
+}

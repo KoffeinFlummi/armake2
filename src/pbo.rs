@@ -88,6 +88,8 @@ pub struct PBO {
     /// Original bytes of entry names that are not valid UTF-8, keyed by their windows-1252 decoding
     /// (the key used in `files`).
     pub raw_names: HashMap<String, Vec<u8>>,
+    /// Same as `raw_names`, for header extension keys and values.
+    raw_extensions: HashMap<String, Vec<u8>>,
     headers: Vec<PBOHeader>,
     /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
     /// and included in the output
@@ -192,11 +194,22 @@ impl PBO {
         self.raw_names.get(name).cloned().unwrap_or_else(|| name.as_bytes().to_vec())
     }
 
+    /// Returns the bytes a header extension key or value is stored as.
+    pub(crate) fn extension_bytes(&self, s: &str) -> Vec<u8> {
+        self.raw_extensions.get(s).cloned().unwrap_or_else(|| s.as_bytes().to_vec())
+    }
+
     /// Reads an existing PBO from input.
     pub fn read<I: Read>(input: &mut I) -> Result<PBO, Error> {
         let mut headers: Vec<PBOHeader> = Vec::new();
         let mut first = true;
         let mut header_extensions: HashMap<String, String> = HashMap::new();
+        let mut raw_extensions: HashMap<String, Vec<u8>> = HashMap::new();
+        let mut decode_ext = |bytes: Vec<u8>| {
+            let (s, raw) = decode_name(bytes);
+            if let Some(raw) = raw { raw_extensions.insert(s.clone(), raw); }
+            s
+        };
 
         loop {
             let header = PBOHeader::read(input)?;
@@ -206,10 +219,11 @@ impl PBO {
                 if !first { unreachable!(); }
 
                 loop {
-                    let s = decode_name(input.read_cstring_bytes()?).0;
+                    let s = decode_ext(input.read_cstring_bytes()?);
                     if s.is_empty() { break; }
 
-                    header_extensions.insert(s, decode_name(input.read_cstring_bytes()?).0);
+                    let value = decode_ext(input.read_cstring_bytes()?);
+                    header_extensions.insert(s, value);
                 }
             } else if header.filename == "" {
                 break;
@@ -239,6 +253,7 @@ impl PBO {
             files,
             header_extensions,
             raw_names,
+            raw_extensions,
             headers,
             checksum: Some(checksum),
         })
@@ -323,6 +338,7 @@ impl PBO {
             files,
             header_extensions,
             raw_names: HashMap::new(),
+            raw_extensions: HashMap::new(),
             headers: Vec::new(),
             checksum: None,
         })
@@ -345,19 +361,19 @@ impl PBO {
 
         if let Some(prefix) = self.header_extensions.get("prefix") {
             headers.write_all(b"prefix\0")?;
-            headers.write_cstring(prefix)?;
+            headers.write_cstring(self.extension_bytes(prefix))?;
         }
 
         for (key, value) in self.header_extensions.iter() {
             if key == "prefix" { continue; }
 
-            headers.write_cstring(key)?;
-            headers.write_cstring(value)?;
+            headers.write_cstring(self.extension_bytes(key))?;
+            headers.write_cstring(self.extension_bytes(value))?;
         }
         headers.write_cstring("".to_string())?;
 
         let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.clone(),b)).collect();
-        files_sorted.sort_by(|a, b| self.name_bytes(&a.0).to_ascii_lowercase().cmp(&self.name_bytes(&b.0).to_ascii_lowercase()));
+        files_sorted.sort_by_cached_key(|f| self.name_bytes(&f.0).to_ascii_lowercase());
 
         for (name, cursor) in &files_sorted {
             let header = PBOHeader {
