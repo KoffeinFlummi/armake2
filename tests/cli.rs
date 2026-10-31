@@ -24,3 +24,20 @@ fn cli_version_runs() {
     assert_eq!(code, 0);
     assert!(out.starts_with("v"), "{}", out);
 }
+
+fn write(dir: &Path, name: &str, content: &str) {
+    let p = dir.join(name);
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    std::fs::write(p, content).unwrap();
+}
+
+#[test]
+fn unquoted_before_brace() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "c.cpp", "\nclass A { x = foo };\n"); // leading newline: line-1 warnings are fixed in a later task
+    let (code, _, err) = armake2(&["rapify", "c.cpp", "c.bin"], dir.path());
+    assert_eq!(code, 0, "{}", err);
+    let (code, out, _) = armake2(&["derapify", "c.bin"], dir.path());
+    assert_eq!(code, 0);
+    assert!(out.contains("x = \"foo\";"), "{}", out);
+}

@@ -39,13 +39,13 @@ peg::parser! {
             s.to_string().replace("''", "'")
         }
 
-        rule unquoted_string() -> String = pos:position!() s:$(![';' | '}'] [_]*) {
+        rule unquoted_string() -> String = pos:position!() s:$((![';' | '}' | '\r' | '\n'] [_])*) {
             let result = s.to_string().trim().to_string();
             warnings.push((pos, format!("String value \"{}\" is not quoted properly.", result), Some("unquoted-string")));
             result
         }
 
-        rule unquoted_string_array() -> String = pos:position!() s:$( (![',' | '}' | ' ' | '\t'] [_]) (![',' | '}'] [_])* ) {
+        rule unquoted_string_array() -> String = pos:position!() s:$( (![',' | '}' | ' ' | '\t' | '\r' | '\n'] [_]) (![',' | '}' | '\r' | '\n'] [_])* ) {
             let result = s.to_string().trim().to_string();
             warnings.push((pos, format!("String array element \"{}\" is not quoted properly.", result), Some("unquoted-string")));
             result
@@ -95,7 +95,7 @@ peg::parser! {
 
         rule entry() -> (String, ConfigEntry) =
             e:(class() / array_entry() / array_expansion_entry() / var_entry()) whitespace()? (";" / &"}") { e } /
-            e:unquoted_string_entry() whitespace()? (";" / &"}") { e }
+            e:unquoted_string_entry() (";" / &"}" / &['\r' | '\n']) { e }
 
         rule entries() -> Vec<(String, ConfigEntry)> = entry() ** (whitespace()?)
 
