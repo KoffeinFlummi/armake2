@@ -17,11 +17,26 @@ use crate::binarize;
 
 struct PBOHeader {
     filename: String,
+    /// Raw name bytes, only set if the name is not valid UTF-8.
+    raw_filename: Option<Vec<u8>>,
     packing_method: u32,
     original_size: u32,
     reserved: u32,
     timestamp: u32,
     data_size: u32,
+}
+
+/// Decodes an entry name. Names that are not valid UTF-8 are decoded as windows-1252, which maps all
+/// 256 byte values to distinct characters, so the original bytes are returned as well.
+fn decode_name(bytes: Vec<u8>) -> (String, Option<Vec<u8>>) {
+    match String::from_utf8(bytes) {
+        Ok(s) => (s, None),
+        Err(e) => {
+            let bytes = e.into_bytes();
+            let (decoded, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
+            (decoded.into_owned(), Some(bytes))
+        }
+    }
 }
 
 /// PBO file
@@ -43,6 +58,9 @@ struct PBOHeader {
 pub struct PBO {
     pub files: LinkedHashMap<String, Cursor<Box<[u8]>>>,
     pub header_extensions: HashMap<String, String>,
+    /// Original bytes of entry names that are not valid UTF-8, keyed by their windows-1252 decoding
+    /// (the key used in `files`).
+    pub raw_names: HashMap<String, Vec<u8>>,
     headers: Vec<PBOHeader>,
     /// only defined when reading existing PBOs, for created PBOs this is calculated during writing
     /// and included in the output
@@ -51,8 +69,10 @@ pub struct PBO {
 
 impl PBOHeader {
     fn read<I: Read>(input: &mut I) -> Result<PBOHeader, Error> {
+        let (filename, raw_filename) = decode_name(input.read_cstring_bytes()?);
         Ok(PBOHeader {
-            filename: input.read_cstring()?,
+            filename,
+            raw_filename,
             packing_method: input.read_u32::<LittleEndian>()?,
             original_size: input.read_u32::<LittleEndian>()?,
             reserved: input.read_u32::<LittleEndian>()?,
@@ -62,7 +82,10 @@ impl PBOHeader {
     }
 
     fn write<O: Write>(&self, output: &mut O) -> Result<(), Error> {
-        output.write_cstring(&self.filename)?;
+        match &self.raw_filename {
+            Some(raw) => output.write_cstring(raw)?,
+            None => output.write_cstring(&self.filename)?,
+        }
         output.write_u32::<LittleEndian>(self.packing_method)?;
         output.write_u32::<LittleEndian>(self.original_size)?;
         output.write_u32::<LittleEndian>(self.reserved)?;
@@ -137,6 +160,11 @@ fn file_allowed(name: &str, exclude_patterns: &[String]) -> bool {
 }
 
 impl PBO {
+    /// Returns the bytes an entry name is stored as in the PBO header.
+    pub fn name_bytes(&self, name: &str) -> Vec<u8> {
+        self.raw_names.get(name).cloned().unwrap_or_else(|| name.as_bytes().to_vec())
+    }
+
     /// Reads an existing PBO from input.
     pub fn read<I: Read>(input: &mut I) -> Result<PBO, Error> {
         let mut headers: Vec<PBOHeader> = Vec::new();
@@ -151,10 +179,10 @@ impl PBO {
                 if !first { unreachable!(); }
 
                 loop {
-                    let s = input.read_cstring()?;
+                    let s = decode_name(input.read_cstring_bytes()?).0;
                     if s.is_empty() { break; }
 
-                    header_extensions.insert(s, input.read_cstring()?);
+                    header_extensions.insert(s, decode_name(input.read_cstring_bytes()?).0);
                 }
             } else if header.filename == "" {
                 break;
@@ -166,7 +194,11 @@ impl PBO {
         }
 
         let mut files: LinkedHashMap<String, Cursor<Box<[u8]>>> = LinkedHashMap::new();
+        let mut raw_names: HashMap<String, Vec<u8>> = HashMap::new();
         for header in &headers {
+            if let Some(raw) = &header.raw_filename {
+                raw_names.insert(header.filename.clone(), raw.clone());
+            }
             let mut buffer: Box<[u8]> = vec![0; header.data_size as usize].into_boxed_slice();
             input.read_exact(&mut buffer)?;
             files.insert(header.filename.clone(), Cursor::new(buffer));
@@ -179,6 +211,7 @@ impl PBO {
         Ok(PBO {
             files,
             header_extensions,
+            raw_names,
             headers,
             checksum: Some(checksum),
         })
@@ -261,6 +294,7 @@ impl PBO {
         Ok(PBO {
             files,
             header_extensions,
+            raw_names: HashMap::new(),
             headers: Vec::new(),
             checksum: None,
         })
@@ -272,6 +306,7 @@ impl PBO {
 
         let ext_header = PBOHeader {
             filename: "".to_string(),
+            raw_filename: None,
             packing_method: 0x5665_7273,
             original_size: 0,
             reserved: 0,
@@ -294,11 +329,12 @@ impl PBO {
         headers.write_cstring("".to_string())?;
 
         let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = self.files.iter().map(|(a,b)| (a.clone(),b)).collect();
-        files_sorted.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        files_sorted.sort_by(|a, b| self.name_bytes(&a.0).to_ascii_lowercase().cmp(&self.name_bytes(&b.0).to_ascii_lowercase()));
 
         for (name, cursor) in &files_sorted {
             let header = PBOHeader {
                 filename: name.clone(),
+                raw_filename: self.raw_names.get(name).cloned(),
                 packing_method: 0,
                 original_size: cursor.get_ref().len() as u32,
                 reserved: 0,
@@ -431,6 +467,9 @@ pub fn cmd_unpack<I: Read>(input: &mut I, output: PathBuf, force: bool) -> Resul
     }
 
     for file_name in pbo.files.keys() {
+        if pbo.raw_names.contains_key(file_name) {
+            warning(format!("Entry name {:?} is not valid UTF-8; extracting it as windows-1252.", file_name), Some("non-utf8-filename"), (None, None));
+        }
         let data = match pbo.file_data(file_name) {
             Ok(Some(data)) => data,
             Ok(None) => continue,

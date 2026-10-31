@@ -48,11 +48,17 @@ impl Write for Output {
 
 pub trait ReadExt: Read {
     fn read_cstring(&mut self) -> io::Result<String>;
+    fn read_cstring_bytes(&mut self) -> io::Result<Vec<u8>>;
     fn read_compressed_int(&mut self) -> io::Result<u32>;
 }
 
 impl<T: Read> ReadExt for T {
     fn read_cstring(&mut self) -> io::Result<String> {
+        let bytes = self.read_cstring_bytes()?;
+        String::from_utf8(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
+    fn read_cstring_bytes(&mut self) -> io::Result<Vec<u8>> {
         let mut bytes: Vec<u8> = Vec::new();
         for byte in self.bytes() {
             let b = byte?;
@@ -63,7 +69,7 @@ impl<T: Read> ReadExt for T {
             }
         }
 
-        Ok(String::from_utf8(bytes).unwrap())
+        Ok(bytes)
     }
 
     fn read_compressed_int(&mut self) -> io::Result<u32> {

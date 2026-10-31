@@ -64,7 +64,7 @@ fn write_bignum<O: Write>(output: &mut O, bn: &BigNum, size: usize) -> Result<()
 }
 
 fn namehash(pbo: &PBO) -> DigestBytes {
-    let mut files_sorted: Vec<(String,&Cursor<Box<[u8]>>)> = pbo.files.iter().map(|(a,b)| (a.to_lowercase(),b)).collect();
+    let mut files_sorted: Vec<(Vec<u8>,&Cursor<Box<[u8]>>)> = pbo.files.iter().map(|(a,b)| (pbo.name_bytes(a).to_ascii_lowercase(),b)).collect();
     files_sorted.sort_by(|a, b| a.0.cmp(&b.0));
 
     let mut h = Hasher::new(MessageDigest::sha1()).unwrap();
@@ -74,7 +74,7 @@ fn namehash(pbo: &PBO) -> DigestBytes {
             continue;
         }
 
-        h.update(name.as_bytes()).unwrap();
+        h.update(name).unwrap();
     }
 
     h.finish().unwrap()
