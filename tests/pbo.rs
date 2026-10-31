@@ -60,3 +60,28 @@ fn cli_unpack_non_utf8_name() {
     assert!(err.contains("non-utf8-filename"), "{}", err);
     assert!(Path::new(&tmp.path().join("out/data/a\u{2014}b.txt")).exists());
 }
+
+fn prefix_of(content: &str) -> PBO {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("mod");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("$PBOPREFIX$"), content).unwrap();
+    PBO::from_directory(root, false, &[], &[]).unwrap()
+}
+
+#[test]
+fn prefix_trailing_slash_stripped() {
+    assert_eq!(prefix_of("my\\mod\\").header_extensions["prefix"], "my\\mod");
+}
+
+#[test]
+fn prefix_normalized_crlf_and_leading_slash() {
+    assert_eq!(prefix_of("\\my\\mod\\\\\r\n").header_extensions["prefix"], "my\\mod");
+}
+
+#[test]
+fn prefix_key_value_form() {
+    let pbo = prefix_of("prefix=my\\mod\\\nversion=a=b\n");
+    assert_eq!(pbo.header_extensions["prefix"], "my\\mod");
+    assert_eq!(pbo.header_extensions["version"], "a=b");
+}

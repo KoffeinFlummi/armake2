@@ -39,6 +39,17 @@ fn decode_name(bytes: Vec<u8>) -> (String, Option<Vec<u8>>) {
     }
 }
 
+/// Normalizes a PBO prefix: forward slashes become backslashes, leading and trailing separators are removed.
+fn normalize_prefix(prefix: &str) -> String {
+    let trimmed = prefix.trim();
+    let normalized = trimmed.replace('/', "\\");
+    let stripped = normalized.trim_matches('\\');
+    if stripped.len() != normalized.len() {
+        warning(format!("Removed leading/trailing slashes from prefix {:?}.", trimmed), Some("prefix-slash"), (None, None));
+    }
+    stripped.to_string()
+}
+
 /// PBO file
 ///
 /// # Examples
@@ -250,11 +261,12 @@ impl PBO {
                 for l in content.lines() {
                     if l.is_empty() { break; }
 
-                    let eq: Vec<String> = l.split('=').map(|s| s.to_string()).collect();
-                    if eq.len() == 1 {
-                        header_extensions.insert("prefix".to_string(), l.to_string());
-                    } else {
-                        header_extensions.insert(eq[0].clone(), eq[1].clone());
+                    let mut kv = l.splitn(2, '=');
+                    let key = kv.next().unwrap();
+                    match kv.next() {
+                        None => { header_extensions.insert("prefix".to_string(), normalize_prefix(l)); },
+                        Some(value) if key == "prefix" => { header_extensions.insert(key.to_string(), normalize_prefix(value)); },
+                        Some(value) => { header_extensions.insert(key.to_string(), value.to_string()); },
                     }
                 }
             } else if binarize && vec!["cpp", "rvmat"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
