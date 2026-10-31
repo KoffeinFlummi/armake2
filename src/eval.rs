@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use std::io::Error;
 
-use crate::error::*;
 
 /// Result of an `__EVAL`
 #[derive(Debug, Clone, PartialEq)]

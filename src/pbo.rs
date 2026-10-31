@@ -40,14 +40,30 @@ fn decode_name(bytes: Vec<u8>) -> (String, Option<Vec<u8>>) {
 }
 
 /// Normalizes a PBO prefix: forward slashes become backslashes, leading and trailing separators are removed.
-fn normalize_prefix(prefix: &str) -> String {
+fn normalize_prefix(prefix: &str, warn: bool) -> String {
     let trimmed = prefix.trim();
     let normalized = trimmed.replace('/', "\\");
     let stripped = normalized.trim_matches('\\');
-    if stripped.len() != normalized.len() {
+    if warn && stripped.len() != normalized.len() {
         warning(format!("Removed leading/trailing slashes from prefix {:?}.", trimmed), Some("prefix-slash"), (None, None));
     }
     stripped.to_string()
+}
+
+/// Parses `$PBOPREFIX$` into header extensions: a bare line is the prefix, `key=value` lines are
+/// extensions. Prefix slashes are normalized (`warn` controls the `prefix-slash` warning).
+fn parse_prefix_file(content: &str, header_extensions: &mut HashMap<String, String>, warn: bool) {
+    for l in content.lines() {
+        if l.is_empty() { break; }
+
+        let mut kv = l.splitn(2, '=');
+        let key = kv.next().unwrap();
+        match kv.next() {
+            None => { header_extensions.insert("prefix".to_string(), normalize_prefix(l, warn)); },
+            Some(value) if key == "prefix" => { header_extensions.insert(key.to_string(), normalize_prefix(value, warn)); },
+            Some(value) => { header_extensions.insert(key.to_string(), value.to_string()); },
+        }
+    }
 }
 
 /// PBO file
@@ -242,6 +258,16 @@ impl PBO {
             binarize = false;
         }
 
+        // the prefix is needed while binarizing, so read it before looking at the other files
+        let mut pre_extensions: HashMap<String,String> = HashMap::new();
+        for prefix_file in &["$PBOPREFIX$", "$PREFIX$"] {
+            if let Ok(content) = std::fs::read_to_string(directory.join(prefix_file)) {
+                parse_prefix_file(&content, &mut pre_extensions, false);
+            }
+        }
+        let prefix: String = pre_extensions.get("prefix").cloned()
+            .unwrap_or_else(|| directory.canonicalize().ok().and_then(|d| d.file_name().map(|n| n.to_string_lossy().into_owned())).unwrap_or_default());
+
         for path in file_list {
             let mut relative = path.strip_prefix(&directory).unwrap().to_path_buf();
             if binarize && relative.file_name() == Some(OsStr::new("config.cpp")) {
@@ -258,17 +284,7 @@ impl PBO {
             if name == "$PBOPREFIX$" || name == "$PREFIX$" {
                 let mut content = String::new();
                 file.read_to_string(&mut content)?;
-                for l in content.lines() {
-                    if l.is_empty() { break; }
-
-                    let mut kv = l.splitn(2, '=');
-                    let key = kv.next().unwrap();
-                    match kv.next() {
-                        None => { header_extensions.insert("prefix".to_string(), normalize_prefix(l)); },
-                        Some(value) if key == "prefix" => { header_extensions.insert(key.to_string(), normalize_prefix(value)); },
-                        Some(value) => { header_extensions.insert(key.to_string(), value.to_string()); },
-                    }
-                }
+                parse_prefix_file(&content, &mut header_extensions, true);
             } else if binarize && vec!["cpp", "rvmat"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
                 let mut buffer: Vec<u8> = Vec::new();
                 file.read_to_end(&mut buffer)?;
@@ -281,7 +297,7 @@ impl PBO {
                     files.insert(name, config.to_cursor()?);
                 }
             } else if binarize::available() && binarize && is_binarizable {
-                let cursor = binarize::binarize(&path).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
+                let cursor = binarize::binarize(&path, &directory, &prefix).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
 
                 files.insert(name, cursor);
             } else {

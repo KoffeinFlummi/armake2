@@ -9,7 +9,7 @@ use std::fs::{create_dir_all, remove_dir_all};
 use std::io::{Write, Cursor, Error};
 #[cfg(windows)]
 use std::io::Read;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 #[cfg(windows)]
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -68,18 +68,22 @@ fn create_temp_directory(name: &str) -> Result<PathBuf, Error> {
 }
 
 /// Binarizes the given path with BI's binarize.exe (Windows, or Linux with `--proton-binarize`).
+///
+/// `addon_root` is the folder the addon is built from and `prefix` its PBO prefix: binarize.exe
+/// resolves texture references (`prefix\data\x.paa`) relative to its current directory, so the
+/// addon is made available at `P:\<prefix>`.
 #[cfg(unix)]
-pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
+pub fn binarize(input: &PathBuf, addon_root: &Path, prefix: &str) -> Result<Cursor<Box<[u8]>>, Error> {
     if !PROTON_ENABLED.load(Ordering::SeqCst) {
         return Err(error!("binarize.exe is only available on Windows, or on Linux through Proton. Use --proton-binarize (see README) or rapify to binarize configs."));
     }
 
-    proton::binarize(input)
+    proton::binarize(input, addon_root, prefix)
 }
 
 /// Binarizes the given path with BI's binarize.exe (Windows, or Linux with `--proton-binarize`).
 #[cfg(windows)]
-pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
+pub fn binarize(input: &PathBuf, _addon_root: &Path, _prefix: &str) -> Result<Cursor<Box<[u8]>>, Error> {
     let binarize_exe = find_binarize_exe().prepend_error("Failed to find BI's binarize.exe:")?;
     if !binarize_exe.exists() {
         return Err(error!("BI's binarize.exe found in registry, but doesn't exist."));
@@ -91,7 +95,12 @@ pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
 
     let piped = var("BIOUTPUT").unwrap_or_else(|_| "0".to_string()) == "1";
 
-    let binarize_output = Command::new(binarize_exe)
+    let mut command = Command::new(binarize_exe);
+    // binarize.exe looks up textures relative to its current directory (the P: drive root)
+    if Path::new("P:\\").is_dir() {
+        command.current_dir("P:\\");
+    }
+    let binarize_output = command
         .args(&["-norecurse", "-always", "-silent", "-maxProcesses=0", input_dir.to_str().unwrap(), tempdir.to_str().unwrap(), input.file_name().unwrap().to_str().unwrap()])
         .stdout(if piped { Stdio::inherit() } else { Stdio::null() })
         .stderr(if piped { Stdio::inherit() } else { Stdio::null() })
@@ -128,7 +137,9 @@ pub fn cmd_binarize(input: PathBuf, output: PathBuf, force: bool) -> Result<(), 
 
     // on unix, `armake2 binarize` always goes through Proton
     set_proton(true);
-    let cursor = binarize(&input)?;
+    let addon_root = input.parent().map(|p| if p.as_os_str().is_empty() { PathBuf::from(".") } else { p.to_path_buf() }).unwrap_or_else(|| PathBuf::from("."));
+    let prefix = addon_root.canonicalize().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())).unwrap_or_default();
+    let cursor = binarize(&input, &addon_root, &prefix)?;
     let mut file = File::create(&output).prepend_error("Failed to open output:")?;
     file.write_all(cursor.get_ref()).prepend_error("Failed to write result to file:")?;
 
@@ -240,6 +251,17 @@ mod proton {
         Ok(())
     }
 
+    /// Textures outside the addon (e.g. vanilla `dz\\...`) can't be resolved; their alpha flags stay unset.
+    fn warn_missing_textures(log: &Path, model: &str) {
+        let text = read_to_string(log).unwrap_or_default();
+        for line in text.lines() {
+            let lower = line.to_ascii_lowercase();
+            if lower.contains("texture") && (lower.contains("cannot") || lower.contains("can't") || lower.contains("not found") || lower.contains("failed")) {
+                warning(format!("{}: {}", model, line.trim()), Some("binarize-missing-texture"), (None, None));
+            }
+        }
+    }
+
     fn tail(path: &Path, lines: usize) -> String {
         let text = read_to_string(path).unwrap_or_default();
         let all: Vec<&str> = text.lines().collect();
@@ -304,7 +326,7 @@ mod proton {
 
         // from here on the sandbox exists on disk, so a failure must remove it again
         let result = (|| -> Result<(), Error> {
-            for d in &["prefix", "in", "out"] {
+            for d in &["prefix", "in", "out", "P"] {
                 create_dir_all(sb.root.join(d))?;
             }
             copy_dir(&tools.join("Bin/Binarize"), &sb.root.join("Binarize")).prepend_error("Failed to copy Binarize:")?;
@@ -322,6 +344,10 @@ mod proton {
             let z = dosdevices.join("z:");
             let _ = remove_file(&z);
             symlink(&sb.root, &z).prepend_error("Failed to confine drive Z:")?;
+            // P: is the project root; binarize.exe resolves texture paths relative to it
+            let p = dosdevices.join("p:");
+            let _ = remove_file(&p);
+            symlink(sb.root.join("P"), &p).prepend_error("Failed to create drive P:")?;
             Ok(())
         })();
 
@@ -353,7 +379,29 @@ mod proton {
         if let Some(sb) = sb { destroy(sb); }
     }
 
-    pub fn binarize(input: &PathBuf) -> Result<Cursor<Box<[u8]>>, Error> {
+    /// Makes the addon visible at `<sandbox>/P/<prefix>` (once per addon).
+    pub fn stage_addon(root: &Path, prefix: &str, addon_root: &Path) -> Result<(), Error> {
+        let mut link = root.join("P");
+        for part in prefix.split(|c| c == '\\' || c == '/').filter(|p| !p.is_empty()) {
+            link.push(part);
+        }
+        if link.symlink_metadata().is_ok() {
+            return Ok(());
+        }
+        if let Some(parent) = link.parent() {
+            create_dir_all(parent)?;
+        }
+        symlink(addon_root.canonicalize()?, &link)
+    }
+
+    /// Windows path on the P: drive of `relative_dir` inside the addon with the given prefix.
+    pub fn p_win_path(prefix: &str, relative_dir: &Path) -> String {
+        let mut parts: Vec<String> = prefix.split(|c| c == '\\' || c == '/').filter(|p| !p.is_empty()).map(String::from).collect();
+        parts.extend(relative_dir.iter().filter_map(|c| c.to_str()).map(String::from));
+        format!("P:\\{}", parts.join("\\"))
+    }
+
+    pub fn binarize(input: &PathBuf, addon_root: &Path, prefix: &str) -> Result<Cursor<Box<[u8]>>, Error> {
         let mut guard = SANDBOX.lock().map_err(|_| error!("Binarize sandbox lock poisoned."))?;
         if guard.is_none() {
             *guard = Some(create_sandbox()?);
@@ -361,19 +409,22 @@ mod proton {
         let sb = guard.as_mut().unwrap();
 
         let name = input.file_name().and_then(|n| n.to_str()).ok_or_else(|| error!("Invalid file name \"{}\".", input.display()))?.to_string();
+        let relative_dir = input.parent().unwrap_or_else(|| Path::new("")).strip_prefix(addon_root)
+            .map_err(|_| error!("\"{}\" is not inside the addon folder \"{}\".", input.display(), addon_root.display()))?;
+        stage_addon(&sb.root, prefix, addon_root).prepend_error("Failed to map the addon onto drive P:")?;
+
         sb.counter += 1;
-        let in_dir = sb.root.join("in").join(sb.counter.to_string());
         let out_dir = sb.root.join("out").join(sb.counter.to_string());
-        create_dir_all(&in_dir)?;
         create_dir_all(&out_dir)?;
-        std::fs::copy(input, in_dir.join(&name)).prepend_error("Failed to stage input file:")?;
 
         let log = out_dir.join("binarize.log");
-        let in_w = win_path(&sb.root, &in_dir);
+        let in_w = p_win_path(prefix, relative_dir);
         let out_w = win_path(&sb.root, &out_dir);
-        run_proton(sb, &["./binarize.exe", "-norecurse", "-always", "-silent", "-maxProcesses=0", &in_w, &out_w, &name],
-            &sb.root.join("Binarize"), &log, BINARIZE_TIMEOUT)
+        run_proton(sb, &["Z:\\Binarize\\binarize.exe", "-norecurse", "-always", "-silent", "-maxProcesses=0", &in_w, &out_w, &name],
+            &sb.root.join("P"), &log, BINARIZE_TIMEOUT)
             .prepend_error("binarize.exe failed:")?;
+
+        warn_missing_textures(&log, &name);
 
         let mut buffer: Vec<u8> = Vec::new();
         match File::open(out_dir.join(&name)) {
@@ -384,7 +435,6 @@ mod proton {
             return Err(error!("binarize.exe produced no output for \"{}\" (models referencing textures/materials may need a P: drive).\n{}", name, tail(&log, 15)));
         }
 
-        let _ = remove_dir_all(&in_dir);
         let _ = remove_dir_all(&out_dir);
         Ok(Cursor::new(buffer.into_boxed_slice()))
     }
@@ -399,6 +449,20 @@ mod proton {
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, b"").unwrap();
             fs::set_permissions(p, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        #[test]
+        fn sandbox_layout() {
+            let root = tempfile::tempdir().unwrap();
+            let src = tempfile::tempdir().unwrap();
+            fs::create_dir_all(root.path().join("P")).unwrap();
+            stage_addon(root.path(), "my\\mod", src.path()).unwrap();
+            let link = root.path().join("P/my/mod");
+            assert_eq!(fs::read_link(&link).unwrap(), src.path().canonicalize().unwrap());
+            // staging twice is fine
+            stage_addon(root.path(), "my\\mod", src.path()).unwrap();
+            assert_eq!(p_win_path("my\\mod", Path::new("sub/dir")), "P:\\my\\mod\\sub\\dir");
+            assert_eq!(p_win_path("my\\mod", Path::new("")), "P:\\my\\mod");
         }
 
         #[test]
