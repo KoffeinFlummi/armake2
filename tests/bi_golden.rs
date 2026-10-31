@@ -26,7 +26,7 @@ fn golden(name: &str) {
 #[test] fn golden_ma() { golden("ma"); }
 #[test] fn golden_m28() { golden("m28"); }
 #[test] fn golden_case() { golden("case"); }
-#[test] #[ignore] fn golden_ev() { golden("ev"); }
-#[test] #[ignore] fn golden_ex() { golden("ex"); }
-#[test] #[ignore] fn golden_e23() { golden("e23"); }
+#[test] fn golden_ev() { golden("ev"); }
+#[test] fn golden_ex() { golden("ex"); }
+#[test] fn golden_e23() { golden("e23"); }
 #[test] #[ignore] fn golden_mac() { golden("mac"); }

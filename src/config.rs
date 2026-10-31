@@ -10,10 +10,38 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crate::*;
 use crate::io::*;
 use crate::error::*;
+use crate::eval::{eval, exec, EvalValue};
 use crate::preprocess::*;
 
+/// State shared with the grammar for `__EVAL` / `__EXEC`.
+#[derive(Default)]
+pub struct EvalCtx {
+    vars: std::collections::HashMap<String, EvalValue>,
+    error: Option<Error>,
+}
+
+impl From<EvalValue> for ConfigEntry {
+    fn from(v: EvalValue) -> ConfigEntry {
+        match v {
+            EvalValue::Str(s) => ConfigEntry::StringEntry(s),
+            EvalValue::Number(n) if n.fract() == 0.0 && n.abs() < 2147483648.0 => ConfigEntry::IntEntry(n as i32),
+            EvalValue::Number(n) => ConfigEntry::FloatEntry(n),
+        }
+    }
+}
+
+impl From<EvalValue> for ConfigArrayElement {
+    fn from(v: EvalValue) -> ConfigArrayElement {
+        match v {
+            EvalValue::Str(s) => ConfigArrayElement::StringElement(s),
+            EvalValue::Number(n) if n.fract() == 0.0 && n.abs() < 2147483648.0 => ConfigArrayElement::IntElement(n as i32),
+            EvalValue::Number(n) => ConfigArrayElement::FloatElement(n),
+        }
+    }
+}
+
 peg::parser! {
-    pub grammar config_grammar(warnings: &mut Vec<(usize, String, Option<&'static str>)>) for str {
+    pub grammar config_grammar(warnings: &mut Vec<(usize, String, Option<&'static str>)>, ctx: &mut EvalCtx) for str {
         rule whitespace() = quiet!{ [' ' | '\r' | '\n' | '\t']+ }
 
         rule float() -> f32 = f:$((['-' | '+'])? ['0'..='9']* "." ['0'..='9']+) {
@@ -51,6 +79,22 @@ peg::parser! {
             result
         }
 
+        rule eval_body() = ("(" eval_body() ")" / "\"" (!"\"" [_])* "\"" / !['(' | ')'] [_])*
+
+        rule eval_value() -> EvalValue = "__EVAL" whitespace()? "(" b:$(eval_body()) ")" {?
+            match eval(b, &mut ctx.vars) {
+                Ok(v) => Ok(v),
+                Err(e) => { ctx.error.get_or_insert(e); Err("a supported __EVAL expression") }
+            }
+        }
+
+        rule exec_entry() = "__EXEC" whitespace()? "(" b:$(eval_body()) ")" whitespace()? ";" {?
+            match exec(b, &mut ctx.vars) {
+                Ok(()) => Ok(()),
+                Err(e) => { ctx.error.get_or_insert(e); Err("a supported __EXEC statement") }
+            }
+        }
+
         rule string() -> String = doublequoted_string() / singlequoted_string()
 
         rule array_element() -> ConfigArrayElement =
@@ -58,6 +102,7 @@ peg::parser! {
             i:integer() &(whitespace()? [',' | '}']) { ConfigArrayElement::IntElement(i) } /
             a:array()   &(whitespace()? [',' | '}']) { ConfigArrayElement::ArrayElement(a) } /
             s:string()  &(whitespace()? [',' | '}']) { ConfigArrayElement::StringElement(s) } /
+            v:eval_value() &(whitespace()? [',' | '}']) { v.into() } /
             s:unquoted_string_array() &(whitespace()? [',' | '}']) { ConfigArrayElement::StringElement(s) }
 
         rule array_elements() -> Vec<ConfigArrayElement> = array_element() ** (whitespace()? "," whitespace()?)
@@ -72,7 +117,8 @@ peg::parser! {
         rule var() -> ConfigEntry =
             f:float()   { ConfigEntry::FloatEntry(f) } /
             i:integer() { ConfigEntry::IntEntry(i) } /
-            s:string()  { ConfigEntry::StringEntry(s) }
+            s:string()  { ConfigEntry::StringEntry(s) } /
+            v:eval_value() { v.into() }
 
         rule var_entry() -> (String, ConfigEntry) = n:name() whitespace()? "=" whitespace()? ce:var() {
             (n, ce)
@@ -97,7 +143,9 @@ peg::parser! {
             e:(class() / array_entry() / array_expansion_entry() / var_entry()) whitespace()? (";" / &"}") { e } /
             e:unquoted_string_entry() (";" / &"}" / &['\r' | '\n']) { e }
 
-        rule entries() -> Vec<(String, ConfigEntry)> = entry() ** (whitespace()?)
+        rule entry_or_exec() -> Option<(String, ConfigEntry)> = exec_entry() { None } / e:entry() { Some(e) }
+
+        rule entries() -> Vec<(String, ConfigEntry)> = v:(entry_or_exec() ** (whitespace()?)) { v.into_iter().flatten().collect() }
 
         rule name() -> String = n:$(['a'..='z' | 'A'..='Z' | '0'..='9' | '_']+) {
             n.to_string()
@@ -630,7 +678,12 @@ impl Config {
 
         let mut warnings: Vec<(usize, String, Option<&'static str>)> = Vec::new();
 
-        let result = ConfigParseErrorExt::format_error(config_grammar::config(&preprocessed, &mut warnings), &info, &preprocessed);
+        let mut ctx = EvalCtx::default();
+        let parsed = config_grammar::config(&preprocessed, &mut warnings, &mut ctx);
+        let result = match ctx.error.take() {
+            Some(e) => Err(e),
+            _ => ConfigParseErrorExt::format_error(parsed, &info, &preprocessed),
+        };
 
         // PEG backtracking runs rule actions more than once; report each warning once.
         let mut seen = std::collections::HashSet::new();

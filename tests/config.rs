@@ -46,3 +46,9 @@ class CfgPatches {
     };
 };", output.trim());
 }
+
+#[test]
+fn eval_unsupported_errors() {
+    let err = Config::from_string(String::from("x = __EVAL(floor 2.7);\n"), None, &Vec::new()).unwrap_err();
+    assert!(err.to_string().contains("not supported"), "{}", err);
+}
