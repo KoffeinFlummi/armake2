@@ -129,6 +129,18 @@ pub fn binarize(input: &PathBuf, _addon_root: &Path, _prefix: &str) -> Result<Cu
     Ok(Cursor::new(buffer.into_boxed_slice()))
 }
 
+/// For `armake2 binarize` there is no PBO: the model's folder is the addon (and its name the
+/// prefix). Returns the input and that folder, with the input inside it.
+fn cli_addon(input: PathBuf) -> (PathBuf, PathBuf) {
+    // a bare file name ("model.p3d") has the empty parent; make it "./model.p3d" so the addon is "."
+    let input = match input.parent() {
+        Some(p) if p.as_os_str().is_empty() => Path::new(".").join(&input),
+        _ => input,
+    };
+    let addon_root = input.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
+    (input, addon_root)
+}
+
 /// Binarizes the given path using BI's binarize.exe and writes it to the output.
 pub fn cmd_binarize(input: PathBuf, output: PathBuf, force: bool) -> Result<(), Error> {
     if !force && output.exists() {
@@ -137,7 +149,7 @@ pub fn cmd_binarize(input: PathBuf, output: PathBuf, force: bool) -> Result<(), 
 
     // on unix, `armake2 binarize` always goes through Proton
     set_proton(true);
-    let addon_root = input.parent().map(|p| if p.as_os_str().is_empty() { PathBuf::from(".") } else { p.to_path_buf() }).unwrap_or_else(|| PathBuf::from("."));
+    let (input, addon_root) = cli_addon(input);
     let prefix = addon_root.canonicalize().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())).unwrap_or_default();
     let cursor = binarize(&input, &addon_root, &prefix)?;
     let mut file = File::create(&output).prepend_error("Failed to open output:")?;
@@ -449,6 +461,16 @@ mod proton {
             fs::create_dir_all(p.parent().unwrap()).unwrap();
             fs::write(p, b"").unwrap();
             fs::set_permissions(p, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        #[test]
+        fn cli_addon_bare_file_name() {
+            for input in &["model.p3d", "./model.p3d", "t21/model.p3d", "/abs/t21/model.p3d"] {
+                let (input, root) = super::super::cli_addon(PathBuf::from(input));
+                assert!(input.parent().unwrap().strip_prefix(&root).is_ok(), "{:?} not in {:?}", input, root);
+                assert_eq!(input.file_name().unwrap(), "model.p3d");
+            }
+            assert_eq!(super::super::cli_addon(PathBuf::from("model.p3d")).1, PathBuf::from("."));
         }
 
         #[test]
