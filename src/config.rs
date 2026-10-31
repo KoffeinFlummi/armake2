@@ -150,6 +150,11 @@ peg::parser! {
     }
 }
 
+/// Returns true if `data` starts with the rapified config signature.
+pub fn is_rapified(data: &[u8]) -> bool {
+    data.starts_with(b"\0raP")
+}
+
 /// Config
 ///
 /// # Examples
@@ -614,8 +619,12 @@ impl Config {
     /// messages. `includefolders` are the folders searched for absolute includes and should usually at
     /// least include the current working directory.
     pub fn read<I: Read>(input: &mut I, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<Config, Error> {
-        let mut buffer = String::new();
-        input.read_to_string(&mut buffer).prepend_error("Failed to read input file:")?;
+        let mut bytes = Vec::new();
+        input.read_to_end(&mut bytes).prepend_error("Failed to read input file:")?;
+        if is_rapified(&bytes) {
+            return Config::read_rapified(&mut Cursor::new(bytes));
+        }
+        let buffer = String::from_utf8(bytes).map_err(|e| error!("Failed to read input file: {}", e))?;
 
         let (preprocessed, info) = preprocess(buffer, path, includefolders).prepend_error("Failed to preprocess config:")?;
 
@@ -679,7 +688,16 @@ impl Config {
 /// messages. `includefolders` are the folders searched for absolute includes and should usually at
 /// least include the current working directory.
 pub fn cmd_rapify<I: Read, O: Write>(input: &mut I, output: &mut O, path: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(), Error> {
-    let config = Config::read(input, path, includefolders)?;
+    let mut bytes = Vec::new();
+    input.read_to_end(&mut bytes).prepend_error("Failed to read input file:")?;
+
+    if is_rapified(&bytes) {
+        warning("Input is already rapified; passing it through unchanged.", Some("prerapified-file"), (path.as_ref().and_then(|p| p.to_str()), None));
+        output.write_all(&bytes)?;
+        return Ok(());
+    }
+
+    let config = Config::read(&mut Cursor::new(bytes), path, includefolders)?;
 
     config.write_rapified(output).prepend_error("Failed to write rapified config:")?;
 

@@ -225,10 +225,16 @@ impl PBO {
                     }
                 }
             } else if binarize && vec!["cpp", "rvmat"].contains(&path.extension().unwrap_or_else(|| OsStr::new("")).to_str().unwrap()) {
-                let config = Config::read(&mut file, Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
-                let cursor = config.to_cursor()?;
+                let mut buffer: Vec<u8> = Vec::new();
+                file.read_to_end(&mut buffer)?;
 
-                files.insert(name, cursor);
+                if is_rapified(&buffer) {
+                    warning("File is already rapified; copying it as-is.", Some("prerapified-file"), (Some(&relative.to_str().unwrap()), None));
+                    files.insert(name, Cursor::new(buffer.into_boxed_slice()));
+                } else {
+                    let config = Config::read(&mut Cursor::new(buffer), Some(path.clone()), includefolders).prepend_error("Failed to parse config:")?;
+                    files.insert(name, config.to_cursor()?);
+                }
             } else if binarize::available() && binarize && is_binarizable {
                 let cursor = binarize::binarize(&path).prepend_error(format!("Failed to binarize {:?}:", relative).to_string())?;
 
