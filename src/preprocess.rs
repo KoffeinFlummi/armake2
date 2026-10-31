@@ -579,6 +579,8 @@ fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths:
 }
 
 fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut HashMap<String, Definition>, info: &mut PreprocessInfo, includefolders: &[PathBuf]) -> Result<String, Error> {
+    // CRLF and classic Mac (lone CR) newlines
+    let input = input.replace("\r\n", "\n").replace('\r', "\n");
     let lines = PreprocessParseErrorExt::format_error(preprocess_grammar::file(&input), &origin, &input)?;
     let mut output = String::from("");
     let mut original_lineno = 1;
@@ -709,7 +711,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 /// assert_eq!("foo = \"abc_xyz\";", output.trim());
 /// ```
 pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(String, PreprocessInfo), Error> {
-    if input[..3].as_bytes() == [0xef,0xbb,0xbf] {
+    if input.as_bytes().starts_with(&[0xef,0xbb,0xbf]) {
         input = input[3..].to_string();
     }
 

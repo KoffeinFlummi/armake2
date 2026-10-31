@@ -29,4 +29,4 @@ fn golden(name: &str) {
 #[test] fn golden_ev() { golden("ev"); }
 #[test] fn golden_ex() { golden("ex"); }
 #[test] fn golden_e23() { golden("e23"); }
-#[test] #[ignore] fn golden_mac() { golden("mac"); }
+#[test] fn golden_mac() { golden("mac"); }
