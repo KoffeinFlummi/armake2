@@ -108,3 +108,17 @@ fn build_keeps_prerapified_config_cpp() {
     assert_eq!(code, 0, "{}", err);
     assert_eq!(out, bin);
 }
+
+#[test]
+fn macro_arity_warns() {
+    let (code, err) = rapify_str("#define QUOTE(x) #x\nclass A { t = QUOTE(a,b); };\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(err.contains("macro-arg-count") && err.contains("QUOTE"), "{}", err);
+}
+
+#[test]
+fn object_like_macro_no_arity_warning() {
+    let (code, err) = rapify_str("#define FOO bar\nclass A { t = FOO(1); };\n");
+    assert_eq!(code, 0, "{}", err);
+    assert!(!err.contains("macro-arg-count"), "{}", err);
+}

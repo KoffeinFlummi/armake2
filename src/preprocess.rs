@@ -229,7 +229,8 @@ impl Definition {
         let params = self.parameters.clone().unwrap_or_default();
         let args = arguments.clone().unwrap_or_default();
 
-        if params.len() != args.len() {
+        let empty_call = params.is_empty() && args.len() == 1 && args[0].trim().is_empty();
+        if params.len() != args.len() && !empty_call {
             return Ok(None);
         }
 
@@ -295,6 +296,29 @@ impl Macro {
     fn resolve(&self, def_map: &HashMap<String, Definition>, stack: &[Definition]) -> Result<Vec<Token>, Error> {
         match def_map.get(&self.name) {
             Some(def) => {
+                if let Some(args) = &self.arguments {
+                    if def.parameters.is_none() {
+                        // Object-like macro followed by parentheses: expand it, keep the parentheses.
+                        let mut tokens = def.value(&None, def_map, stack)?.unwrap_or_default();
+                        let (_, rest) = self.original.split_at(self.name.len());
+                        let mut rest_tokens = preprocess_grammar::tokens(rest).expect("Failed to parse macro arguments.");
+                        rest_tokens = Macro::resolve_all(&rest_tokens, def_map, stack)?;
+                        tokens.extend(rest_tokens);
+                        return Ok(tokens);
+                    }
+
+                    let expected = def.parameters.as_ref().map_or(0, |p| p.len());
+                    let got = if expected == 0 && args.len() == 1 && args[0].trim().is_empty() { 0 } else { args.len() };
+                    if got != expected {
+                        warning(format!("Macro \"{}\" expects {} argument(s), got {}", self.name, expected, got), Some("macro-arg-count"), (None, None));
+                        return Ok(if self.quoted {
+                            vec![Token::NewlineToken("\"\"".to_string(), 0)]
+                        } else {
+                            Vec::new()
+                        });
+                    }
+                }
+
                 let value = def.value(&self.arguments, def_map, stack)?;
 
                 if !def.local && self.quoted {

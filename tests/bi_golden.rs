@@ -23,8 +23,8 @@ fn golden(name: &str) {
 #[test] fn golden_us() { golden("us"); }
 #[test] fn golden_c51() { golden("c51"); }
 #[test] fn golden_rap() { golden("rap"); }
-#[test] #[ignore] fn golden_ma() { golden("ma"); }
-#[test] #[ignore] fn golden_m28() { golden("m28"); }
+#[test] fn golden_ma() { golden("ma"); }
+#[test] fn golden_m28() { golden("m28"); }
 #[test] #[ignore] fn golden_case() { golden("case"); }
 #[test] #[ignore] fn golden_ev() { golden("ev"); }
 #[test] #[ignore] fn golden_ex() { golden("ex"); }
