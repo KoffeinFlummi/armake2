@@ -42,6 +42,8 @@ Commands:
     preprocess  Preprocess a file.
     derapify    Derapify a config.
     binarize    Binarize a file using BI's binarize.exe (Windows; on Linux through Proton).
+                The model's folder is the addon and its name the prefix; use build
+                for models whose textures are referenced by a longer prefix.
     build       Build a PBO from a folder.
     pack        Pack a folder into a PBO without any binarization or rapification.
     inspect     Inspect a PBO and list contained files.
