@@ -122,3 +122,33 @@ fn object_like_macro_no_arity_warning() {
     assert_eq!(code, 0, "{}", err);
     assert!(!err.contains("macro-arg-count"), "{}", err);
 }
+
+#[test]
+fn cli_include_case_warns() {
+    let dir = tempdir_with(&[("config.cpp", "#include \"INC.hpp\"\n"), ("inc.hpp", "x = 1;\n")]);
+    let (code, _, err) = armake2(&["rapify", "config.cpp", "c.bin"], dir.path());
+    assert_eq!(code, 0, "{}", err);
+    assert!(err.contains("include-case"), "{}", err);
+}
+
+#[test]
+fn cli_missing_include_folder() {
+    let dir = tempdir_with(&[("config.cpp", "x = 1;\n")]);
+    let (code, _, err) = armake2(&["rapify", "-i", "nonexist", "config.cpp", "c.bin"], dir.path());
+    assert!(code != 0 && code != 101, "code {} {}", code, err);
+    assert!(err.contains("nonexist"), "{}", err);
+}
+
+#[test]
+fn include_not_found_has_line() {
+    let dir = tempdir_with(&[("config.cpp", "x = 1;\n#include \"missing.hpp\"\n")]);
+    let (code, _, err) = armake2(&["rapify", "config.cpp", "c.bin"], dir.path());
+    assert!(code != 0, "{}", err);
+    assert!(err.contains("config.cpp:2"), "{}", err);
+}
+
+fn tempdir_with(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    for (n, c) in files { write(dir.path(), n, c); }
+    dir
+}

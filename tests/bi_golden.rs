@@ -25,7 +25,7 @@ fn golden(name: &str) {
 #[test] fn golden_rap() { golden("rap"); }
 #[test] fn golden_ma() { golden("ma"); }
 #[test] fn golden_m28() { golden("m28"); }
-#[test] #[ignore] fn golden_case() { golden("case"); }
+#[test] fn golden_case() { golden("case"); }
 #[test] #[ignore] fn golden_ev() { golden("ev"); }
 #[test] #[ignore] fn golden_ex() { golden("ex"); }
 #[test] #[ignore] fn golden_e23() { golden("e23"); }

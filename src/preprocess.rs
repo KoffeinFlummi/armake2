@@ -3,6 +3,7 @@
 use std::clone::Clone;
 use std::collections::HashMap;
 use std::env::current_dir;
+use std::ffi::OsStr;
 use std::fs::{File, read_dir};
 use std::io::{Read, Write, Error};
 use std::iter::{Sum};
@@ -403,10 +404,41 @@ pub fn pathsep() -> &'static str {
     if cfg!(windows) { "\\" } else { "/" }
 }
 
-fn matches_include_path(path: &PathBuf, include_path: &str) -> bool {
+fn names_equal(a: &OsStr, b: &OsStr, ci: bool) -> bool {
+    if ci {
+        a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy())
+    } else {
+        a == b
+    }
+}
+
+/// Resolves `relative` below `base`, comparing each component ASCII-case-insensitively.
+/// An exact match is preferred over a case-insensitive one at every level.
+fn resolve_case_insensitive(base: &Path, relative: &Path) -> Option<PathBuf> {
+    let mut current = base.to_path_buf();
+    for component in relative.components() {
+        let name = match component {
+            Component::Normal(n) => n,
+            _ => continue,
+        };
+        let exact = current.join(name);
+        if exact.exists() {
+            current = exact;
+            continue;
+        }
+        let found = read_dir(&current).ok()?.filter_map(|e| e.ok()).find(|e| names_equal(&e.file_name(), name, true))?;
+        current = found.path();
+    }
+    Some(current)
+}
+
+fn matches_include_path(path: &Path, include_path: &str, ci: bool) -> bool {
     let include_pathbuf = PathBuf::from(&include_path.replace("\\", pathsep()));
 
-    if path.file_name() != include_pathbuf.file_name() { return false; }
+    match (path.file_name(), include_pathbuf.file_name()) {
+        (Some(a), Some(b)) if names_equal(a, b, ci) => {},
+        _ => return false,
+    }
 
     for parent in path.ancestors() {
         if parent.is_file() { continue; }
@@ -427,32 +459,44 @@ fn matches_include_path(path: &PathBuf, include_path: &str) -> bool {
         let relative = path.strip_prefix(parent).unwrap();
         let test_path = prefix_pathbuf.join(relative);
 
-        if test_path == include_pathbuf {
-            return true;
+        let (mut a, mut b) = (test_path.components(), include_pathbuf.components());
+        loop {
+            match (a.next(), b.next()) {
+                (None, None) => return true,
+                (Some(x), Some(y)) if names_equal(x.as_os_str(), y.as_os_str(), ci) => {},
+                _ => break,
+            }
         }
     }
 
     false
 }
 
-fn search_directory(include_path: &str, directory: PathBuf) -> Option<PathBuf> {
-    for entry in read_dir(&directory).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            if path.file_name().unwrap() == ".git" {
-                continue;
-            }
+fn search_directory(include_path: &str, directory: &Path, ci: bool) -> Option<PathBuf> {
+    // unreadable directories are skipped
+    if let Ok(entries) = read_dir(directory) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name() == Some(OsStr::new(".git")) {
+                    continue;
+                }
 
-            if let Some(path) = search_directory(include_path, path) {
+                if let Some(path) = search_directory(include_path, &path, ci) {
+                    return Some(path);
+                }
+            } else if matches_include_path(&path, include_path, ci) {
                 return Some(path);
             }
-        } else if matches_include_path(&path, include_path) {
-            return Some(path);
         }
     }
 
-    let direct_path = (&directory).to_str().unwrap().to_string() + &include_path.replace("\\", pathsep());
-    let direct_pathbuf = PathBuf::from(direct_path);
+    let relative = PathBuf::from(include_path.trim_start_matches('\\').replace("\\", pathsep()));
+    let direct_pathbuf = if ci {
+        resolve_case_insensitive(directory, &relative)?
+    } else {
+        directory.join(&relative)
+    };
 
     if direct_pathbuf.is_file() {
         return Some(direct_pathbuf);
@@ -476,8 +520,19 @@ fn canonicalize(path: PathBuf) -> PathBuf {
     result
 }
 
-fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths: &[PathBuf]) -> Result<PathBuf, Error> {
-    if include_path.chars().nth(0).unwrap() != '\\' {
+fn include_not_found(include_path: &str, origin: Option<&PathBuf>, line: u32) -> Error {
+    match origin {
+        Some(origin_path) => error!("File \"{}\" included from \"{}:{}\" not found.", include_path, origin_path.to_str().unwrap().to_string(), line),
+        None => error!("Included file \"{}\" (line {}) not found.", include_path, line)
+    }
+}
+
+fn warn_include_case(include_path: &str, found: &Path) {
+    warning(format!("Include \"{}\" only matched \"{}\" ignoring case.", include_path, found.display()), Some("include-case"), (None, None));
+}
+
+fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths: &[PathBuf], line: u32) -> Result<PathBuf, Error> {
+    if include_path.chars().nth(0) != Some('\\') {
         let mut path = PathBuf::from(include_path.replace("\\", pathsep()));
 
         if let Some(origin_path) = origin {
@@ -490,25 +545,36 @@ fn find_include_file(include_path: &str, origin: Option<&PathBuf>, search_paths:
 
         let absolute = canonicalize(path);
 
-        if !absolute.is_file() {
-            match origin {
-                Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-                None => Err(error!("Included file \"{}\" not found.", include_path))
-            }
-        } else {
-            Ok(absolute)
+        if absolute.is_file() {
+            return Ok(absolute);
+        }
+
+        // case-insensitive fallback, like on Windows
+        let root: PathBuf = absolute.components().take_while(|c| !matches!(c, Component::Normal(_))).collect();
+        let relative: PathBuf = absolute.components().skip_while(|c| !matches!(c, Component::Normal(_))).collect();
+        match resolve_case_insensitive(&root, &relative) {
+            Some(found) if found.is_file() => {
+                warn_include_case(include_path, &found);
+                Ok(found)
+            },
+            _ => Err(include_not_found(include_path, origin, line)),
         }
     } else {
+        let mut roots: Vec<PathBuf> = Vec::new();
         for search_path in search_paths {
-            if let Some(file_path) = search_directory(include_path, search_path.canonicalize()?) {
-                return Ok(file_path);
+            roots.push(search_path.canonicalize().map_err(|e| error!("Include folder \"{}\" is not usable: {}", search_path.display(), e))?);
+        }
+
+        for ci in [false, true] {
+            for root in &roots {
+                if let Some(file_path) = search_directory(include_path, root, ci) {
+                    if ci { warn_include_case(include_path, &file_path); }
+                    return Ok(file_path);
+                }
             }
         }
 
-        match origin {
-            Some(origin_path) => Err(error!("File \"{}\" included from \"{}\" not found.", include_path, origin_path.to_str().unwrap().to_string())),
-            None => Err(error!("Included file \"{}\" not found.", include_path))
-        }
+        Err(include_not_found(include_path, origin, line))
     }
 }
 
@@ -534,7 +600,7 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
                         //    // @todo: complain
                         //}
 
-                        let file_path = find_include_file(&path, origin.as_ref(), includefolders)?;
+                        let file_path = find_include_file(&path, origin.as_ref(), includefolders, original_lineno)?;
 
                         info.import_stack.push(file_path.clone());
 
@@ -645,6 +711,12 @@ fn preprocess_rec(input: String, origin: Option<PathBuf>, definition_map: &mut H
 pub fn preprocess(mut input: String, origin: Option<PathBuf>, includefolders: &[PathBuf]) -> Result<(String, PreprocessInfo), Error> {
     if input[..3].as_bytes() == [0xef,0xbb,0xbf] {
         input = input[3..].to_string();
+    }
+
+    for folder in includefolders {
+        if !folder.is_dir() {
+            return Err(error!("Include folder \"{}\" does not exist or is not a directory.", folder.display()));
+        }
     }
 
     let mut info = PreprocessInfo {

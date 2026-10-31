@@ -139,3 +139,26 @@ y=Y;
     assert!(output.contains("inc"), "{:?}", output);
     assert!(output.contains("y=1"), "{:?}", output); // trailing spaces from the #define value are kept
 }
+
+#[test]
+fn include_case_insensitive_absolute() {
+    let dir = tempdir().unwrap();
+    create_dir(dir.path().join("z")).unwrap();
+    create_dir(dir.path().join("z/mod")).unwrap();
+    File::create(dir.path().join("z/mod/foo.hpp")).unwrap().write_all(b"found\n").unwrap();
+    let input = String::from("#include \"\\z\\mod\\Foo.hpp\"\n");
+    let (output, _) = preprocess(input, None, &vec![dir.path().to_path_buf()]).unwrap();
+    assert!(output.contains("found"), "{:?}", output);
+}
+
+#[test]
+fn include_exact_case_wins() {
+    let dir = tempdir().unwrap();
+    File::create(dir.path().join("Inc.hpp")).unwrap().write_all(b"a=1;\n").unwrap();
+    File::create(dir.path().join("inc.hpp")).unwrap().write_all(b"a=2;\n").unwrap();
+    File::create(dir.path().join("f.cpp")).unwrap();
+    let input = String::from("#include \"inc.hpp\"\n");
+    let (output, _) = preprocess(input, Some(dir.path().join("f.cpp")), &vec![dir.path().to_path_buf()]).unwrap();
+    assert!(output.contains("a=2;"), "{:?}", output);
+    assert!(!output.contains("a=1;"), "{:?}", output);
+}
